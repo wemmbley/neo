@@ -1,0 +1,21 @@
+{
+    "name": "rustam/public",
+    "autoload": {
+        "psr-4": {
+            "App\\App\\": "app/",
+            "App\\Neo\\": "neo/"
+        },
+        "files": [
+            "neo/Helpers/functions.php"
+        ]
+    },
+    "authors": [
+        {
+            "name": "Rustam Holiev",
+            "email": "golevv.rustam@gmail.com"
+        }
+    ],
+    "require-dev": {
+        "symfony/var-dumper": "^6.2"
+    }
+}

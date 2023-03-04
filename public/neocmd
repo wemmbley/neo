@@ -1,0 +1,100 @@
+#!/usr/bin/php -d memory_limit=2048M -d post_max_size=0
+<?php
+
+use App\Neo\Console\Console;
+use App\Neo\Database\DB;
+use App\Neo\Database\Migration;
+use App\Neo\Database\Seeder;
+use App\Neo\Helpers\FileSystem\File;
+use App\Neo\Helpers\FileSystem\Path;
+use App\Neo\Helpers\Regex;
+
+require_once 'vendor/autoload.php';
+
+// @todo make CMD class instead of this A4 list
+
+DB::boot();
+
+Console::isParams('help', function() {
+    Console::printLine(['magentabg', 'italic', 'bold'], '> NEO CMD');
+
+    Console::printLine(['greenbg', 'bold'], 'Database');
+    Console::print(['bold'], '    make:migration (name)');
+    Console::printLine([], ' ---------- Create database migration boilerplate');
+    Console::print(['bold'], '    make:seeder (name)');
+    Console::printLine([], ' ------------- Create database seeder boilerplate');
+    Console::print(['bold'], '    db:migrate');
+    Console::printLine([], ' --------------------- Migrates tables into DB.');
+    Console::print(['bold'], '    db:rollback');
+    Console::printLine([], ' -------------------- Cancel all migrations changes.');
+    Console::print(['bold'], '    db:seed (count)');
+    Console::printLine([], ' ---------------- Seed DB with (count) times.');
+
+    Console::printLine(['greenbg', 'bold'], 'Controllers');
+    Console::print(['bold'], '    make:controller (name)');
+    Console::printLine([], ' --------- Create controller boilerplate');
+})->withInput($argv);
+
+Console::isParams('db:migrate', function () {
+    Migration::migrate();
+    Console::success('Database was migrated.');
+})->withInput($argv);
+
+Console::isParams('db:rollback', function () {
+    Migration::rollback();
+    Console::success('Database was rollback.');
+})->withInput($argv);
+
+Console::isParams('db:seed', function () use ($argv) {
+    Seeder::seed($argv[2]);
+    Console::success('Database was seeded.');
+})->withInput($argv);
+
+Console::isParams('make:migration', function () use ($argv) {
+    $migrationName = sprintf('%s_create_%s_table.php', date('Y-m-d-His'), $argv[2]);
+    $migrationsPath = Path::abs('app/Database/Migrations/') . $migrationName;
+
+    makeBoilerplate($migrationsPath, 'MakeMigration', function($boilerplate) use ($argv) {
+        return Regex::replaceAll('/TABLE_NAME/')
+            ->string($boilerplate)
+            ->to($argv[2]);
+    });
+
+    Console::success(sprintf('Migration app/Database/Migrations/%s was created.', $migrationName));
+})->withInput($argv);
+
+Console::isParams('make:seeder', function () use ($argv) {
+    $seederName = sprintf('%sSeeder.php', $argv[2]);
+    $seedersPath = Path::abs('app/Database/Seeders/') . $seederName;
+
+    makeBoilerplate($seedersPath, 'MakeSeeder', function($boilerplate) use ($argv) {
+        return Regex::replaceAll('/TABLE_NAME/')
+            ->string($boilerplate)
+            ->to($argv[2]);
+    });
+
+    Console::success(sprintf('Seeder app/Database/Seeders/%s was created.', $seederName));
+})->withInput($argv);
+
+Console::isParams('make:controller', function () use ($argv) {
+    $controllerName = sprintf('%sController.php', $argv[2]);
+    $controllersPath = Path::abs('app/Controllers/') . $controllerName;
+
+    makeBoilerplate($controllersPath, 'MakeController', function($boilerplate) use ($argv) {
+        return Regex::replaceAll('/CONTROLLER_NAME/')
+            ->string($boilerplate)
+            ->to($argv[2]);
+    });
+
+    Console::success(sprintf('Controller app/Controllers/%s was created.', $controllerName));
+})->withInput($argv);
+
+function makeBoilerplate(string $path, string $boilerplateName, \Closure $closure = null): void
+{
+    $boilerplate = File::get(Path::abs('neo/Console/Boilerplates/' . $boilerplateName));
+
+    if ( ! is_null($closure))
+        $boilerplate = $closure($boilerplate);
+
+    File::put($path, $boilerplate);
+}

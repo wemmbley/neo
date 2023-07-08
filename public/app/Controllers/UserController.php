@@ -64,11 +64,11 @@ class UserController
                 ->send();
         }
 
-        $userInfo = Request::post();
+        $user = Request::post();
 
         DB::table('users')->insert([
-            'name' => $userInfo['name'],
-            'email' => $userInfo['email']
+            'name' => $user->name,
+            'email' => $user->email
         ]);
 
         Response::redirect('/users');

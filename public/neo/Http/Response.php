@@ -8,7 +8,7 @@ use App\Neo\Helpers\MimeTypes\Json;
 use App\Neo\MimeTypes\Mime;
 
 /**
- * Code example
+ * Generate HTTP-Response
  *
  * <code>
  *      // send custom output
@@ -33,6 +33,22 @@ class Response
     protected static array $headers = [];
     protected static string $method = '';
     protected static string $body = '';
+
+    /**
+     * Display HTTP body with custom headers.
+     *
+     * @return void
+     */
+    public static function send(): void
+    {
+        foreach (static::$headers as $header) {
+            header($header);
+        }
+
+        echo static::$body;
+
+        die;
+    }
 
     public static function body(string $content = ''): static
     {
@@ -72,25 +88,20 @@ class Response
 
     public static function status(int $statusCode = 200): static
     {
-        header(sprintf('HTTP/1.1 %s %s', $statusCode, Http::statusText($statusCode)));
+        static::$headers[] = sprintf('HTTP/1.1 %s %s', $statusCode, Http::statusText($statusCode));
 
         return new static;
     }
 
-    public static function send(): void
-    {
-        foreach (static::$headers as $header) {
-            header($header);
-        }
-
-        echo static::$body;
-
-        die;
-    }
-
+    /**
+     * Immediately redirect page without send() method.
+     *
+     * @param string $to
+     * @return static
+     */
     public static function redirect(string $to): static
     {
-        static::$headers[] = sprintf('Location: %s', $to);
+        header(sprintf('Location: %s', $to));
 
         return new static;
     }

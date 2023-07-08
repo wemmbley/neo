@@ -9,51 +9,51 @@ use App\Neo\Helpers\Primitives\Str;
 
 class Request
 {
-    protected static array $userParams = [];
+    protected static array $inputBag = [];
 
-    public static function setUserParams(array $params): void
-    {
-        static::$userParams = $params;
-    }
-
-    public static function param(string $name): mixed
+    public static function input(string $name): mixed
     {
         if (Request::method() === Http::METHOD_GET)
-            return (static::$userParams[$name]) ?? null;
+            return (static::$inputBag[$name]) ?? null;
 
-        foreach (static::$userParams as $method => $value) {
+        foreach (static::$inputBag as $method => $value) {
             if (Request::method() === $method)
-                return (static::$userParams[$method][$name]) ?? null;
+                return (static::$inputBag[$method][$name]) ?? null;
         }
 
         return null;
     }
 
-    public static function getAllParams(): array
+    public static function all(): array
     {
-        return static::$userParams;
+        return static::$inputBag;
     }
 
-    public static function get(string $param = '')
+    public static function insertInput(string $name, string $value): void
     {
-        if ( ! empty($param))
-            return $_GET[$param] ?? null;
+        static::$inputBag[$name] = $value;
+    }
+
+    public static function get(string $input = '')
+    {
+        if ( ! empty($input))
+            return $_GET[$input] ?? null;
 
         return $_GET;
     }
 
-    public static function post(string $param = '')
+    public static function post(string $input = '')
     {
-        if ( ! empty($param))
-            return $_POST[$param] ?? null;
+        if ( ! empty($input))
+            return $_POST[$input] ?? null;
 
         return $_POST;
     }
 
-    public static function server(string $param = '')
+    public static function server(string $input = '')
     {
-        if ( ! empty($param))
-            return $_SERVER[$param] ?? null;
+        if ( ! empty($input))
+            return $_SERVER[$input] ?? null;
 
         return $_SERVER;
     }
@@ -71,7 +71,7 @@ class Request
     public static function isAjax(): bool
     {
         if( ! is_null(static::server('HTTP_X_REQUESTED_WITH'))
-            && Str::lower(static::server('HTTP_X_REQUESTED_WITH')) == 'xmlhttprequest')
+            && Str::lower(static::server('HTTP_X_REQUESTED_WITH')) === 'xmlhttprequest')
             return true;
 
         return false;

@@ -19,7 +19,7 @@ class UserController
      */
     public function deleteUser(): void
     {
-        $userId = Request::param('id');
+        $userId = Request::input('id');
 
         DB::table('users')
             ->where('id', '=', $userId)
@@ -71,9 +71,6 @@ class UserController
             'email' => $userInfo['email']
         ]);
 
-        Response::send();
-
-        // @todo redirect not working
         Response::redirect('/users');
     }
 
@@ -85,7 +82,7 @@ class UserController
      */
     public function editUser(): void
     {
-        $userId = Request::param('id');
+        $userId = Request::input('id');
 
         $user = DB::table('users')
             ->where('id', '=', $userId)
@@ -133,7 +130,7 @@ class UserController
      */
     public function showUser(): void
     {
-        $userId = Request::param('id');
+        $userId = Request::input('id');
 
         $user = DB::table('users')
             ->where('id', '=', $userId)

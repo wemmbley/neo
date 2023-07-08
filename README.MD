@@ -6,16 +6,18 @@ I like the Laravel framework, so this project is not particularly different from
 
 It implements the minimum functionality required to develop a standard web application.
 
-### Set-up
-0. `git pull`
-1. `make build`
-2. `make up`
-3. `make shell`
-4. `composer install`
-5. `composer update`
-6. `php neocmd db:migrate`
-7. `php neocmd db:seed 20`
-8. Enjoy http://localhost:11000/
+### Quick set-up (30sec)
+0. `git init`
+1. `git remote add origin git@github.com:wemmbley/neo3.git`
+2. `git pull origin master`
+3. `make build`
+4. `make up`
+5. `make shell`
+6. `composer install`
+7. `composer update`
+8. `php neocmd db:migrate`
+9. `php neocmd db:seed 20`
+10. Enjoy! ;) http://localhost:11000/
 
 ### Features:
 - Controllers

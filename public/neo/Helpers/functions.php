@@ -72,7 +72,7 @@ function config(string $path)
         throw new Exception('Config file not found.');
     }
 
-    $config = require_once $configPath;
+    $config = require $configPath;
 
     if ( ! array_key_exists($path[1], $config)) {
         throw new Exception('Config key not found.');

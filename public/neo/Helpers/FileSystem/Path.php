@@ -6,6 +6,7 @@ namespace App\Neo\Helpers\FileSystem;
 
 use App\Neo\Console\Console;
 use App\Neo\Helpers\Primitives\Arr;
+use RecursiveTreeIterator;
 
 class Path
 {
@@ -48,5 +49,23 @@ class Path
         unset($directory[1]);
 
         return Arr::reindex($directory);
+    }
+
+    public static function scanFiles(string $path): array
+    {
+        $fileScan = self::scan($path);
+        $result = [];
+
+        foreach ($fileScan as $folder) {
+            $folderPath = $path . DIRECTORY_SEPARATOR . $folder;
+
+            if (is_dir($folderPath)) {
+                $result[$folderPath.'/'.$folder] =  self::scanFiles($folderPath);
+            } else {
+                $result[$folderPath.'/'.$folder] = $folder;
+            }
+        }
+
+        return $result;
     }
 }

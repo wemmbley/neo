@@ -1,0 +1,150 @@
+@import "defaults.css";
+
+/* –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+ *
+ * Home page.
+ *
+ * ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––– */
+
+body {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+.welcome-container {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding-bottom: 6rem;
+}
+.welcome-message {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    font-weight: lighter;
+    font-size: 26px;
+}
+.logo {
+    width: 200px;
+}
+.logo-blurred {
+    opacity: 0;
+}
+a{
+    padding-top: 0.5rem;
+    font-size: 21px;
+    font-weight: 300;
+}
+img:hover {
+    /*filter: drop-shadow(0 0 0 rgba(255, 0, 255, 0.67)) blur(30px);*/
+}
+
+/* –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+ *
+ * All users page.
+ *
+ * ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––– */
+table {
+    margin-top: 4rem;
+}
+table a {
+    font-size: 16px;
+    text-align: center;
+    color: #a378f3;
+    padding-left: 0.5rem;
+    font-weight: 200;
+}
+table td {
+    padding-right: 1rem;
+    padding-bottom: 0.1rem;
+    font-weight: 200;
+}
+table th {
+    color: #af85ff;
+    padding-bottom: 0.5rem;
+    font-weight: 300;
+    cursor: default;
+}
+.links {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    width: 100%;
+    margin-top: 1rem;
+}
+.image-link {
+    display: flex;
+    align-items: center;
+}
+.image-link a {
+    font-size: 16px;
+    padding: 0;
+}
+.image-link img {
+    margin-right: 0.3rem;
+}
+
+/* –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+ *
+ * Create user page
+ *
+ * ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––– */
+.create-user h2 {
+    padding-bottom: 0.5rem;
+    color: #a378f3;
+    font-size: 24px;
+    font-weight: 200;
+    text-align: center;
+}
+.create-user {
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+    font-weight: 300;
+    font-size: 14px;
+}
+.create-user p {
+    margin: 1rem 0 0.5rem 0;
+}
+.create-user a {
+    font-size: 16px;
+}
+.create-user input {
+    margin-top: 0.5rem;
+    width: 14rem;
+}
+.create-user input[type=submit] {
+    margin-top: 0;
+}
+.create-user .image-link {
+    margin-top: 1.5rem;
+    display: flex;
+    justify-content: end;
+}
+
+/* –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+ *
+ * User page
+ *
+ * ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––– */
+.user-page {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+.user-page a {
+    margin-top: 0.5rem;
+}
+.hello {
+    display: flex;
+    align-items: center;
+}
+.hello p {
+    margin-left: 0.5rem;
+}

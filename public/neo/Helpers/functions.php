@@ -4,6 +4,7 @@ use App\Neo\Helpers\FileSystem\File;
 use App\Neo\Helpers\FileSystem\Path;
 use App\Neo\Helpers\Primitives\Str;
 use App\Neo\Helpers\Regex;
+use App\Neo\Http\Request;
 
 /*
 |--------------------------------------------------------------------------
@@ -78,4 +79,14 @@ function config(string $path)
     }
 
     return $config[$path[1]];
+}
+
+/*
+|--------------------------------------------------------------------------
+| Get resources URL.
+|--------------------------------------------------------------------------
+*/
+function asset(string $path)
+{
+    return Request::protocol() . Request::server('HTTP_HOST') . '/resources/' . $path;
 }

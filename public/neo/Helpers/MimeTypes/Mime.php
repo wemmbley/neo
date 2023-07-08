@@ -2,10 +2,16 @@
 
 declare(strict_types=1);
 
-namespace App\Neo\MimeTypes;
+namespace App\Neo\Helpers\MimeTypes;
+
+use App\Neo\Helpers\FileSystem\File;
+use App\Neo\Helpers\FileSystem\Path;
+use Exception;
 
 class Mime
 {
+    private static array $mimes;
+
     /**
      * Get file MIME. It takes from user config in mimes.php.
      *
@@ -19,12 +25,13 @@ class Mime
 
         static::validateFile($mimePath);
 
-        $mimes = require_once Path::abs($mimePath);
+        if ( ! isset(static::$mimes))
+            static::$mimes = require_once Path::abs($mimePath);
 
-        if ( ! isset($mimes[$extension]))
+        if ( ! array_key_exists($extension, static::$mimes))
             return '';
 
-        return static::getMime($mimes, $extension);
+        return static::getMime(static::$mimes, $extension);
     }
 
     /**

@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Neo\Router;
 
+use App\Neo\Helpers\FileSystem\File;
+use App\Neo\Helpers\FileSystem\Path;
 use App\Neo\Helpers\Primitives\Arr;
+use App\Neo\Helpers\Primitives\Str;
 use App\Neo\Helpers\Regex;
 use App\Neo\Http\Request;
 use App\Neo\Http\Response;
@@ -62,7 +65,24 @@ class Router
             }
         }
 
+        static::loadAssets();
+
         static::sendNotFound();
+    }
+
+    protected static function loadAssets()
+    {
+        $uri = Request::uri();
+
+        if (Str::contains($uri, 'resources')) {
+            $resourceFile = Path::abs(Str::removeChars($uri, 1));
+
+            if (File::exists($resourceFile)) {
+                Response::contentType(File::extension($resourceFile))
+                    ->body(File::get($resourceFile))
+                    ->send();
+            }
+        }
     }
 
     protected static function executeClosures(mixed $routeBody, array $params = []): void

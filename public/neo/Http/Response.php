@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Neo\Http;
 
 use App\Neo\Helpers\MimeTypes\Json;
-use App\Neo\MimeTypes\Mime;
+use App\Neo\Helpers\MimeTypes\Mime;
 
 /**
  * Generate HTTP-Response
@@ -67,7 +67,9 @@ class Response
 
     public static function contentType(string $type): static
     {
-        static::$headers[] = sprintf('Content-Type: %s', Mime::extension($type));
+        $mime = (empty(Mime::extension($type))) ? $type : Mime::extension($type);
+
+        static::$headers[] = sprintf('Content-Type: %s', $mime);
 
         return new static;
     }

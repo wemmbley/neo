@@ -73,6 +73,11 @@ class Request
         return static::server('REQUEST_METHOD');
     }
 
+    public static function protocol(): string
+    {
+        return stripos($_SERVER['SERVER_PROTOCOL'],'https') === 0 ? 'https://' : 'http://';
+    }
+
     public static function isAjax(): bool
     {
         if( ! is_null(static::server('HTTP_X_REQUESTED_WITH'))

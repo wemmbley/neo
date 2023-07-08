@@ -10,11 +10,11 @@
 <body>
 <form action="/updateUser" method="post">
     @csrf
-    <input type="hidden" name="id" value="{{ $userId }}">
+    <input type="hidden" name="id" value="{{ $user->id }}">
     <p>Name</p>
-    <input type="text" name="name" value="{{ $userName }}">
+    <input type="text" name="name" value="{{ $user->name }}">
     <p>Email</p>
-    <input type="text" name="email" value="{{ $userEmail }}">
+    <input type="text" name="email" value="{{ $user->email }}">
     <br>
     <input type="submit">
 

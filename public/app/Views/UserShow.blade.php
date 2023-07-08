@@ -11,7 +11,7 @@
     @if(empty($user))
         User not found.
     @else
-        Hello, {{ $user[0]['name'] }}.
+        Hello, {{ $user->name }}.
     @endif
 
     <br>

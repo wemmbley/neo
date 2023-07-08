@@ -33,14 +33,14 @@ class Arr
      */
     public static function last(array $array): mixed
     {
-        return $array[count($array)-1];
+        return end($array);
     }
 
     /**
      * @param array $array
      * @return int|string|null
      */
-    public static function keyLast(array $array): int|string|null
+    public static function lastKey(array $array): int|string|null
     {
         return array_key_last($array);
     }

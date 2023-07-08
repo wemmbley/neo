@@ -50,7 +50,7 @@ class DB
             $sqlStart .= $fieldName;
             $sqlMiddle .= '\'' . $fieldValue . '\'';
 
-            if ($fieldName !== Arr::keyLast($fields)) {
+            if ($fieldName !== Arr::lastKey($fields)) {
                 $sqlStart .= ', ';
                 $sqlMiddle .= ', ';
             } else {
@@ -69,7 +69,7 @@ class DB
         foreach ($fields as $fieldName => $fieldValue) {
             $sql .= $fieldName . ' = \'' . $fieldValue . '\'';
 
-            if ( $fieldName !== Arr::last($fields))
+            if ($fieldName !== Arr::lastKey($fields))
                 $sql .= ', ';
         }
 
@@ -92,11 +92,11 @@ class DB
         return static::query($sql);
     }
 
-    public static function first(): array
+    public static function first()
     {
         $sql = 'SELECT * FROM ' . static::$table . static::$where . ' LIMIT 1';
 
-        return static::query($sql);
+        return static::query($sql)[0];
     }
 
     public static function query(string $sql): array

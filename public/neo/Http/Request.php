@@ -44,7 +44,7 @@ class Request
         if ( ! empty($input))
             return $_GET[$input] ?? null;
 
-        return $_GET;
+        return (object) $_GET;
     }
 
     public static function post(string $input = '')
@@ -52,7 +52,7 @@ class Request
         if ( ! empty($input))
             return $_POST[$input] ?? null;
 
-        return $_POST;
+        return (object) $_POST;
     }
 
     public static function server(string $input = '')
@@ -60,7 +60,7 @@ class Request
         if ( ! empty($input))
             return $_SERVER[$input] ?? null;
 
-        return $_SERVER;
+        return (object) $_SERVER;
     }
 
     public static function body(): bool|string

@@ -25,7 +25,7 @@ class UserController
             ->where('id', '=', $userId)
             ->delete();
 
-        Response::send();
+        Response::redirect('/users');
     }
 
     /**
@@ -40,16 +40,16 @@ class UserController
                 ->send();
         }
 
-        $userInfo = Request::post();
+        $user = Request::post();
 
         DB::table('users')
-            ->where('id', '=', $userInfo['id'])
+            ->where('id', '=', $user->id)
             ->update([
-                'name' => $userInfo['name'],
-                'email' => $userInfo['email']
+                'name' => $user->name,
+                'email' => $user->email
             ]);
 
-        Response::send();
+        Response::redirect('/users');
     }
 
     /**
@@ -89,9 +89,7 @@ class UserController
             ->first();
 
         View::template('EditUser')->withParams([
-            'userId' => $user[0]['id'],
-            'userName' => $user[0]['name'],
-            'userEmail' => $user[0]['email']
+            'user' => $user
         ])->display();
     }
 

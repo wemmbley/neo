@@ -15,14 +15,14 @@
             <th>Email</th>
         </tr>
         @foreach($users as $user)
-        <tr>
-            <td>{{ $user['id'] }}</td>
-            <td>{{ $user['name'] }}</td>
-            <td>{{ $user['email'] }}</td>
-            <td><a href="/user/{{ $user['id'] }}">Show</a></td>
-            <td><a href="/editUser/{{ $user['id'] }}">Edit</a></td>
-            <td><a href="/deleteUser/{{ $user['id'] }}">Delete</a></td>
-        </tr>
+            <tr>
+                <td>{{ $user->id }}</td>
+                <td>{{ $user->name }}</td>
+                <td>{{ $user->email }}</td>
+                <td><a href="/user/{{ $user->id }}">Show</a></td>
+                <td><a href="/editUser/{{ $user->id }}">Edit</a></td>
+                <td><a href="/deleteUser/{{ $user->id }}">Delete</a></td>
+            </tr>
         @endforeach
     </table>
 

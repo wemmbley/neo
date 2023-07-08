@@ -75,7 +75,7 @@ class Router
         $uri = Request::uri();
 
         if (Str::contains($uri, 'resources')) {
-            $resourceFile = Path::abs(Str::removeChars($uri, 1));
+            $resourceFile = Path::abs('public/' . Str::removeChars($uri, 1));
 
             if (File::exists($resourceFile)) {
                 Response::contentType(File::extension($resourceFile))

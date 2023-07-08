@@ -62,7 +62,7 @@ class View
      */
     public static function template(string $template): static
     {
-        static::$templatePath = Path::abs(sprintf('resources/views/%s.blade.php', $template));
+        static::$templatePath = Path::abs(sprintf('public/resources/views/%s.blade.php', $template));
 
         if ( ! File::exists(static::$templatePath))
             throw new Exception('View ' . static::$templatePath . ' not found');

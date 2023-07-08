@@ -42,6 +42,28 @@ a{
 img:hover {
     /*filter: drop-shadow(0 0 0 rgba(255, 0, 255, 0.67)) blur(30px);*/
 }
+.nothing {
+    display: flex;
+    flex-direction: column;
+    height: 40vh;
+    justify-content: center;
+    align-items: center;
+    font-size: 26px;
+    font-weight: 200;
+    position: relative;
+}
+.nothing .text {
+    margin-bottom: 4rem;
+}
+.nothing .sad {
+    display: flex;
+}
+.nothing .sad-smile {
+    padding-left: 6px;
+}
+.nothing .down-icon {
+    margin-right: 28rem;
+}
 
 /* –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
  *

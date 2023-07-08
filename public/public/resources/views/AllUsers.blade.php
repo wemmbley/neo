@@ -9,7 +9,8 @@
     <title>All users</title>
 </head>
 <body>
-    <div class="container">
+<div class="container">
+    @if(!empty($users))
         <table>
             <tr>
                 <th>ID</th>
@@ -30,18 +31,30 @@
                 </tr>
             @endforeach
         </table>
-
-        <div class="links">
-            <div class="image-link">
-                <img src="{{ asset('img/icons/circle-plus.svg') }}" alt="plus icon" width="24px">
-                <a href="/createUser">Add new user</a>
+    @else
+        <div class="nothing">
+            <div class="text">
+                <div class="sad">
+                    <p>Nothing to show</p>
+                    <img class="sad-smile" src="{{ asset('img/icons/sad-icon.svg') }}" alt="sad icon" width="36px">
+                </div>
+                <p>Maybe add something grate?</p>
             </div>
+            <img class="down-icon" src="{{ asset('img/icons/down-icon.svg') }}" alt="down icon" width="48px">
+        </div>
+    @endif
 
-            <div class="image-link">
-                <img src="{{ asset('img/icons/home.svg') }}" alt="home icon" width="24px">
-                <a href="/">Back home</a>
-            </div>
+    <div class="links">
+        <div class="image-link">
+            <img src="{{ asset('img/icons/circle-plus.svg') }}" alt="plus icon" width="24px">
+            <a href="/createUser">Add new user</a>
+        </div>
+
+        <div class="image-link">
+            <img src="{{ asset('img/icons/home.svg') }}" alt="home icon" width="24px">
+            <a href="/">Back home</a>
         </div>
     </div>
+</div>
 </body>
 </html>

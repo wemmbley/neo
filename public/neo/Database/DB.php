@@ -101,7 +101,6 @@ class DB
 
     public static function query(string $sql): array
     {
-        // @todo make it configuration at database config instead of hardcoded assoc
-        return static::$pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+        return static::$pdo->query($sql)->fetchAll(config('database.fetch'));
     }
 }

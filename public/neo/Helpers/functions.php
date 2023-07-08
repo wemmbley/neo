@@ -2,11 +2,12 @@
 
 use App\Neo\Helpers\FileSystem\File;
 use App\Neo\Helpers\FileSystem\Path;
+use App\Neo\Helpers\Primitives\Str;
 use App\Neo\Helpers\Regex;
 
 /*
 |--------------------------------------------------------------------------
-| Dynamic classes
+| Dynamic classes.
 |--------------------------------------------------------------------------
 */
 function create_class(string $class, ...$params)
@@ -28,7 +29,7 @@ function call_method($object, string $method, ...$params): void
 
 /*
 |--------------------------------------------------------------------------
-| Get .env value
+| Get .env value.
 |--------------------------------------------------------------------------
 */
 function env(string $param)
@@ -48,4 +49,33 @@ function env(string $param)
     }
 
     throw new Exception(sprintf('Param %s not found in .env', $param));
+}
+
+/*
+|--------------------------------------------------------------------------
+| Get config value from file in app/Config.
+|--------------------------------------------------------------------------
+|
+| Example:
+| config('database.fetch');
+|
+| Here we got "fetch" value from file app/Config/database.php
+|
+*/
+function config(string $path)
+{
+    $path = Str::split($path, '.');
+    $configPath = Path::abs('/app/Config/' . $path[0] . '.php');
+
+    if ( ! File::exists($configPath)) {
+        throw new Exception('Config file not found.');
+    }
+
+    $config = require_once $configPath;
+
+    if ( ! array_key_exists($path[1], $config)) {
+        throw new Exception('Config key not found.');
+    }
+
+    return $config[$path[1]];
 }

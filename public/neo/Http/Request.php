@@ -34,6 +34,11 @@ class Request
         static::$inputBag[$name] = $value;
     }
 
+    public static function replaceInputBag(array $inputs): void
+    {
+        static::$inputBag = $inputs;
+    }
+
     public static function get(string $input = '')
     {
         if ( ! empty($input))

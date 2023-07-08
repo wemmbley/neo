@@ -80,7 +80,7 @@ class Router
 
         $controller = create_class($routeBody['action'][0]);
 
-        Request::setUserParams($params);
+        Request::replaceInputBag($params);
 
         call_method($controller, $routeBody['action'][1]);
 

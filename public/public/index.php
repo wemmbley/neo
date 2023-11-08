@@ -9,8 +9,6 @@ require_once '../vendor/autoload.php';
 require_once '../app/routes.php';
 
 try {
-    // @todo make auth with roles
-    // @todo make UPDATE, DELETE methods
     DB::boot();
     Router::boot();
 }

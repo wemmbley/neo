@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace App\App\Controllers;
 
+use App\App\Middlewares\UserMiddleware;
+use App\App\Services\UserService;
 use App\Neo\Database\DB;
 use App\Neo\Http\Request;
 use App\Neo\Http\Response;
-use App\Neo\Protector;
 use App\Neo\View;
 
 class UserController
@@ -21,9 +22,7 @@ class UserController
     {
         $userId = Request::input('id');
 
-        DB::table('users')
-            ->where('id', '=', $userId)
-            ->delete();
+        UserService::deleteUser($userId);
 
         Response::redirect('/users');
     }
@@ -35,19 +34,11 @@ class UserController
      */
     public function updateUser(): void
     {
-        if ( ! Protector::isCsrf()) {
-            Response::status(403)
-                ->send();
-        }
+        UserMiddleware::checkCsrf();
 
         $user = Request::post();
 
-        DB::table('users')
-            ->where('id', '=', $user->id)
-            ->update([
-                'name' => $user->name,
-                'email' => $user->email
-            ]);
+        UserService::updateUser($user);
 
         Response::redirect('/users');
     }
@@ -59,17 +50,11 @@ class UserController
      */
     public function createUser(): void
     {
-        if ( ! Protector::isCsrf()) {
-            Response::status(403)
-                ->send();
-        }
+        UserMiddleware::checkCsrf();
 
         $user = Request::post();
 
-        DB::table('users')->insert([
-            'name' => $user->name,
-            'email' => $user->email
-        ]);
+        UserService::createUser($user);
 
         Response::redirect('/users');
     }
@@ -84,9 +69,7 @@ class UserController
     {
         $userId = Request::input('id');
 
-        $user = DB::table('users')
-            ->where('id', '=', $userId)
-            ->first();
+        $user = UserService::editUser($userId);
 
         View::template('EditUser')->withParams([
             'user' => $user
@@ -130,9 +113,7 @@ class UserController
     {
         $userId = Request::input('id');
 
-        $user = DB::table('users')
-            ->where('id', '=', $userId)
-            ->first();
+        $user = UserService::getUser($userId);
 
         View::template('UserShow')->withParams([
             'user' => $user

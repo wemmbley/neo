@@ -2,8 +2,6 @@
 
 namespace App\Neo;
 
-use App\Neo\Session;
-
 class Protector
 {
     /**

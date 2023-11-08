@@ -1,8 +1,8 @@
 # NEO
 
 ## Structure
-- app - here all app files
-- neo - here framework
+- app - here all application files
+- neo - here framework <-- (Fully self-made, main work here.)
 - public - resources, storage, uploads
 
 # Demo CRUD

@@ -45,6 +45,8 @@ function env(string $param)
     foreach ($envRegex[0] as $envParam) {
         [$envKey, $envVal] = explode('=', $envParam);
 
+        $envVal = str_replace("\r", '', $envVal);
+
         if ($param === $envKey)
             return $envVal;
     }

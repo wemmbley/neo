@@ -32,5 +32,5 @@ To call console type `php neocmd help` in project root.
 
 <img alt="cmd" src="cmd.png" width="600"/>
 
-> [!CAUTION] **Keep in mind** <br>
-> I not implemented any validation in the console, so you need to be careful with arguments that you pass to this console.
+> [!CAUTION]
+> I am not implemented any validation in the console, so you need to be careful with arguments that you pass to this console.

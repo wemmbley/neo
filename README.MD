@@ -1,23 +1,20 @@
 # NEO Framework
 
-Welcome, friend! This is my project designed specifically to be placed on a resume as an indicator of my skills. I purposely didn't use any third party libraries to show pure development skill.
+Welcome, friend! This is my project, designed specifically to be included in a CV as a demonstration of my skills. I purposely didn’t use any third-party libraries to showcase pure development abilities.
 
-I like the Laravel framework, so this project is not particularly different from it. This project can even be called a stripped-down Laravel.
+I enjoy working with the Laravel framework, so this project has similarities to it. In fact, it could even be considered a stripped-down version of Laravel.
 
-It implements the minimum functionality required to develop a standard web application.
+It includes the minimum functionality necessary for developing a standard web application.
 
 ### Quick set-up (30sec)
-0. `git init`
-1. `git remote add origin git@github.com:wemmbley/neo3.git`
-2. `git pull origin master`
-3. `make build`
-4. `make up`
-5. `make shell`
-6. `composer install`
-7. `composer update`
-8. `php neocmd db:migrate`
-9. `php neocmd db:seed 20`
-10. Enjoy! ;) http://localhost:11000/
+1. `git clone https://github.com/wemmbley/neo.git neo`
+2. `make up` (or `docker-compose up`)
+3. `make shell` (or `docker-compose exec php-fpm sh`)
+4. `composer install`
+5. `php neocmd db:migrate`
+6. `php neocmd db:seed 20`
+
+Site: http://localhost:11000/
 
 ### Features:
 - Controllers
@@ -35,4 +32,5 @@ To call console type `php neocmd help` in project root.
 
 <img alt="cmd" src="cmd.png" width="600"/>
 
-**But keep in mind** I did not implement any validation in the console, so you need to be extremely careful about the arguments that you pass to this console.
+> [!CAUTION] **Keep in mind** <br>
+> I not implemented any validation in the console, so you need to be careful with arguments that you pass to this console.

@@ -4,6 +4,8 @@ namespace Bootstrap;
 
 use Neo\Autoload\Autoload;
 use Neo\Kernel\Application;
+use Neo\Kernel\DefaultDependencyResolver;
+use Neo\Kernel\ProfilerDependencyResolver;
 use Neo\Kernel\ServiceContainer;
 use Neo\Lang\LangProcessor;
 
@@ -38,17 +40,31 @@ class Bootstrap
 
         # Загружаем ядро приложения.
         #
-        $app = new Application(
 
-        # Передаём сюда инстанс контейнера.
+        # Создаём основной механизм разрешения зависимостей.
         #
-            container: new ServiceContainer(),
+        $defaultResolver = new DefaultDependencyResolver();
 
-            # Передаём все доступные провайдеры.
-            #
-            providers: $this->autoloadProviders,
-
+        # Оборачиваем его профилировщиком.
+        $profiler = new ProfilerDependencyResolver(
+            $defaultResolver,
         );
+
+        # Создаём контейнер с нужным Resolver.
+        #
+        $container = new ServiceContainer(
+            resolver: $profiler,
+        );
+
+        # Собираем приложение.
+        #
+        $app = new Application(
+            container: $container,
+            providers: $this->autoloadProviders,
+        );
+
+        # Запускаем приложение.
+        #
         $app->run();
     }
 

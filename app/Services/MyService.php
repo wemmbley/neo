@@ -11,6 +11,6 @@ class MyService
     public function handle()
     {
         echo $this->service->myHandler();
-        dd(123);
+        dump(123);
     }
 }

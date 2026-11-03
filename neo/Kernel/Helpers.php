@@ -35,3 +35,15 @@ if(!function_exists('base_path')) {
             : $base . DIRECTORY_SEPARATOR . ltrim($path, '/\\');
     }
 }
+
+/**
+ * Профилировщик приложения. Из места вызова бросает статистику вызовов.
+ *
+ * @return void
+ */
+if(!function_exists('profiler')) {
+    function profiler(): void
+    {
+        dd(app()->getContainer()->getProfiler()?->getStatistics());
+    }
+}

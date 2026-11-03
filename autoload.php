@@ -48,7 +48,7 @@ return [
     # | Папки с тестами. Запускаются при php cli test
     # |
     'tests_paths' => [
-
+        __DIR__ . '/neo/Kernel/Tests',
     ],
 
 ];

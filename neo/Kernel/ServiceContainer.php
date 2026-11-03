@@ -4,59 +4,63 @@ declare(strict_types=1);
 
 namespace Neo\Kernel;
 
-/**
- * Контейнер зависимостей: хранит привязки, создаёт
- * объекты и сам подставляет аргументы конструкторов
- * и методов по типам.
- *
- *   $container->singleton(Mailer::class, fn (Container $container) => new Mailer($container->make(Config::class)));
- *   $container->make(UserService::class);               // зависимости подставятся сами
- *   $container->call([UserController::class, 'show'], ['id' => 5]);
- *
- * Аргумент подбирается так: сначала по имени из переданного
- * массива, затем по классу (из массива или контейнера), затем
- * значение по умолчанию, затем null (если тип допускает).
- * Строки вида "5" приводятся к int/float, если метод этого
- * требует (параметры маршрутов).
- */
+use Closure;
+
 class ServiceContainer
 {
-    /** @var array<string, array{concrete: \Closure|string|null, shared: bool}> */
     private array $bindings = [];
 
-    /** @var array<string, mixed> */
     private array $instances = [];
 
-    /** @var array<string, true> */
     private array $resolving = [];
 
-    /**
-     * Привязывает имя к способу создания.
-     * Каждый make() создаёт новый объект.
-     *
-     * @param \Closure|string|null $concrete
-     * Замыкание `fn (Container $c, array $params)`,
-     * имя класса или null (создавать сам $abstract).
-     */
-    public function bind(string $abstract, \Closure|string|null $concrete = null, bool $shared = false): static
+    private DependencyResolverContract $resolver;
+
+    public function __construct(
+        ?DependencyResolverContract $resolver = null,
+    )
     {
-        unset($this->instances[$abstract]);
-        $this->bindings[$abstract] = ['concrete' => $concrete, 'shared' => $shared];
+        $this->resolver = $resolver ?? new DefaultDependencyResolver();
+    }
+
+    public function setResolver(
+        DependencyResolverContract $resolver,
+    ): static
+    {
+        $this->resolver = $resolver;
 
         return $this;
     }
 
-    /**
-     * Как bind(), но объект создаётся один раз и переиспользуется.
-     */
-    public function singleton(string $abstract, \Closure|string|null $concrete = null): static
+    public function getResolver(): DependencyResolverContract
+    {
+        return $this->resolver;
+    }
+
+    public function bind(
+        string              $abstract,
+        Closure|string|null $concrete = null,
+        bool                $shared = false,
+    ): static
+    {
+        unset($this->instances[$abstract]);
+
+        $this->bindings[$abstract] = [
+            'concrete' => $concrete,
+            'shared' => $shared,
+        ];
+
+        return $this;
+    }
+
+    public function singleton(
+        string              $abstract,
+        Closure|string|null $concrete = null,
+    ): static
     {
         return $this->bind($abstract, $concrete, true);
     }
 
-    /**
-     * Кладёт готовый объект (или значение) под именем.
-     */
     public function instance(string $abstract, mixed $instance): mixed
     {
         unset($this->bindings[$abstract]);
@@ -64,204 +68,102 @@ class ServiceContainer
         return $this->instances[$abstract] = $instance;
     }
 
-    /**
-     * Убирает привязку и готовый объект:
-     * дальше имя считается неизвестным.
-     */
     public function forget(string $abstract): void
     {
         unset($this->bindings[$abstract], $this->instances[$abstract]);
     }
 
-    /**
-     * Известно ли контейнеру это имя (привязка или готовый объект).
-     */
     public function has(string $abstract): bool
     {
-        return isset($this->bindings[$abstract]) || array_key_exists($abstract, $this->instances);
+        return isset($this->bindings[$abstract])
+            || array_key_exists($abstract, $this->instances);
     }
 
-    /**
-     * Создаёт или возвращает объект.
-     *
-     * @param array<string, mixed> $parameters
-     * Значения для аргументов конструктора по имени.
-     *
-     * @throws ServiceContainerException Если объект создать
-     * нельзя или найден цикл зависимостей.
-     */
-    public function make(string $abstract, array $parameters = []): mixed
+    public function make(
+        string $abstract,
+        array  $parameters = [],
+    ): mixed
     {
-        if (array_key_exists($abstract, $this->instances)) {
-            return $this->instances[$abstract];
+        if ($this->hasInstance($abstract)) {
+            return $this->getInstance($abstract);
         }
 
-        if (isset($this->resolving[$abstract])) {
+        if ($this->isResolving($abstract)) {
             throw new ServiceContainerException(
-                'Циклическая зависимость: ' . implode(' -> ', array_keys($this->resolving)) . ' -> ' . $abstract . '.'
+                'Циклическая зависимость: '
+                . implode(' -> ', $this->getResolving())
+                . ' -> ' . $abstract . '.'
             );
         }
 
-        $binding = $this->bindings[$abstract] ?? null;
-        $concrete = $binding['concrete'] ?? $abstract;
-
-        $this->resolving[$abstract] = true;
-
-        try {
-            $object = match (true) {
-                $concrete instanceof \Closure => $concrete($this, $parameters),
-                $concrete === $abstract => $this->build($abstract, $parameters),
-                default => $this->make($concrete, $parameters),
-            };
-        } finally {
-            unset($this->resolving[$abstract]);
-        }
-
-        if ($binding !== null && $binding['shared']) {
-            $this->instances[$abstract] = $object;
-        }
-
-        return $object;
+        return $this->resolver->resolve(
+            $this,
+            $abstract,
+            $parameters,
+        );
     }
 
-    /**
-     * То же, что make(); для совместимости с привычным
-     * интерфейсом контейнеров.
-     */
     public function get(string $id): mixed
     {
         return $this->make($id);
     }
 
-    /**
-     * Вызывает функцию или метод, подставляя аргументы
-     * так же, как make().
-     *
-     * Принимает замыкание, функцию,
-     * `[класс|объект, 'метод']`, `'Класс@метод'`,
-     * имя класса или объект с `__invoke`.
-     *
-     * @param array<string, mixed> $parameters
-     * Значения по имени аргумента или по имени класса.
-     * @throws \ReflectionException
-     */
-    public function call(callable|array|string $callback, array $parameters = []): mixed
+    public function call(
+        callable|array|string $callback,
+        array                 $parameters = [],
+    ): mixed
     {
-        if (is_string($callback) && str_contains($callback, '@')) {
-            $callback = explode('@', $callback, 2);
-        } elseif (is_string($callback) && !function_exists($callback) && class_exists($callback)) {
-            $callback = [$callback, '__invoke'];
-        }
-
-        if (is_array($callback)) {
-            [$target, $method] = $callback;
-            $object = is_string($target) ? $this->make($target) : $target;
-            $reflection = new \ReflectionMethod($object, $method);
-
-            return $reflection->invokeArgs($object, $this->resolveParameters($reflection->getParameters(), $parameters));
-        }
-
-        if (is_object($callback) && !$callback instanceof \Closure) {
-            return $this->call([$callback, '__invoke'], $parameters);
-        }
-
-        $closure = \Closure::fromCallable($callback);
-        $reflection = new \ReflectionFunction($closure);
-
-        return $closure(...$this->resolveParameters($reflection->getParameters(), $parameters));
+        return $this->resolver->call(
+            $this,
+            $callback,
+            $parameters,
+        );
     }
 
-    /**
-     * @param array<string, mixed> $parameters
-     * @throws \ReflectionException
-     */
-    private function build(string $class, array $parameters): object
+    public function getBinding(string $abstract): ?array
     {
-        if (!class_exists($class)) {
-            throw new ServiceContainerException(
-                interface_exists($class)
-                    ? "Для интерфейса {$class} нет привязки: добавьте bind() или singleton()."
-                    : "Класс {$class} не найден."
-            );
-        }
-
-        $reflection = new \ReflectionClass($class);
-
-        if (!$reflection->isInstantiable()) {
-            throw new ServiceContainerException("Класс {$class} нельзя создать (абстрактный или с закрытым конструктором).");
-        }
-
-        $constructor = $reflection->getConstructor();
-
-        if ($constructor === null) {
-            return new $class();
-        }
-
-        return $reflection->newInstanceArgs($this->resolveParameters($constructor->getParameters(), $parameters, $class));
+        return $this->bindings[$abstract] ?? null;
     }
 
-    /**
-     * @param list<\ReflectionParameter> $reflections
-     * @param array<string, mixed>       $given
-     *
-     * @return list<mixed>
-     */
-    private function resolveParameters(array $reflections, array $given, string $context = ''): array
+    public function hasInstance(string $abstract): bool
     {
-        $arguments = [];
-
-        foreach ($reflections as $parameter) {
-            $name = $parameter->getName();
-            $type = $parameter->getType();
-
-            if (array_key_exists($name, $given)) {
-                $arguments[] = $this->coerce($given[$name], $type);
-                continue;
-            }
-
-            if ($type instanceof \ReflectionNamedType && !$type->isBuiltin()) {
-                $class = $type->getName();
-
-                if (array_key_exists($class, $given)) {
-                    $arguments[] = $given[$class];
-                    continue;
-                }
-
-                if ($this->has($class) || class_exists($class)) {
-                    $arguments[] = $this->make($class);
-                    continue;
-                }
-            }
-
-            if ($parameter->isDefaultValueAvailable()) {
-                $arguments[] = $parameter->getDefaultValue();
-            } elseif ($type !== null && $type->allowsNull()) {
-                $arguments[] = null;
-            } elseif ($parameter->isVariadic()) {
-                break;
-            } else {
-                $where = $context !== '' ? " в {$context}" : '';
-
-                throw new ServiceContainerException("Не удалось подобрать значение для аргумента \${$name}{$where}.");
-            }
-        }
-
-        return $arguments;
+        return array_key_exists($abstract, $this->instances);
     }
 
-    /**
-     * Приводит строку из URL к числу, если метод ждёт int или float.
-     */
-    private function coerce(mixed $value, ?\ReflectionType $type): mixed
+    public function getInstance(string $abstract): mixed
     {
-        if (!is_string($value) || !$type instanceof \ReflectionNamedType || !$type->isBuiltin()) {
-            return $value;
-        }
+        return $this->instances[$abstract];
+    }
 
-        return match ($type->getName()) {
-            'int' => preg_match('/^-?\d+$/', $value) === 1 ? (int) $value : $value,
-            'float' => is_numeric($value) ? (float) $value : $value,
-            default => $value,
-        };
+    public function storeInstance(string $abstract, mixed $instance): void
+    {
+        $this->instances[$abstract] = $instance;
+    }
+
+    public function isResolving(string $abstract): bool
+    {
+        return isset($this->resolving[$abstract]);
+    }
+
+    public function startResolving(string $abstract): void
+    {
+        $this->resolving[$abstract] = true;
+    }
+
+    public function stopResolving(string $abstract): void
+    {
+        unset($this->resolving[$abstract]);
+    }
+
+    public function getResolving(): array
+    {
+        return array_keys($this->resolving);
+    }
+
+    public function getProfiler(): ?ProfilerDependencyResolver
+    {
+        return $this->resolver instanceof ProfilerDependencyResolver
+            ? $this->resolver
+            : null;
     }
 }

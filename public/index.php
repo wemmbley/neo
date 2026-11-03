@@ -9,3 +9,9 @@ $bootstrap = new Bootstrap();
 $bootstrap->boot();
 
 app(MyService::class)->handle();
+
+$container = app()->getContainer();
+
+$resolver = $container->getResolver();
+
+profiler();

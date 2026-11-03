@@ -1,0 +1,39 @@
+#!/usr/bin/env php
+<?php
+
+# Достаем все доступные классы автолоадером.
+# На данном моменте нам нужно загрузить всё приложение
+# Для его корректной работы.
+#
+require_once __DIR__ . '/Bootstrap/Bootstrap.php';
+
+new Bootstrap\Bootstrap()->boot();
+
+# Получаем список доступных команд из корневого файла.
+#
+$autoload = require __DIR__ . '/autoload.php';
+$commands = $autoload['commands'];
+
+# Выполняем код внутри функции exit() для предотвращения
+# Исполнения лишнего кода. Это безопасность.
+#
+exit(
+    new Neo\Console\CommandProcessor(
+
+        # Прокидываем контейнер для внедрения зависимостей
+        # Внутрь команд.
+        #
+        container: app()->getContainer(),
+
+        # Сюда мы передаем аргументы консоли.
+        # Это базовая переменная PHP.
+        #
+        arguments: $argv,
+
+        # Сюда мы передаем листинг доступных команд.
+        #
+        commands: $commands,
+
+
+    )->run()
+);

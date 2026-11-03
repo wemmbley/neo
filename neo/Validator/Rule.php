@@ -50,9 +50,7 @@ final class Rule
     public function __construct(
         private readonly mixed $data,
         private readonly string $path = 'value'
-    ) {
-        parent::__construct();
-    }
+    ) {}
 
     public static function of(mixed $data, string $name = 'value'): self
     {

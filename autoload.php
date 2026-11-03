@@ -49,6 +49,12 @@ return [
     # |
     'tests_paths' => [
         __DIR__ . '/neo/Kernel/Tests',
+        __DIR__ . '/neo/Lang/Tests',
+        __DIR__ . '/neo/Console/Tests',
+        __DIR__ . '/neo/Config/Tests',
+        __DIR__ . '/neo/Autoload/Tests',
+        __DIR__ . '/neo/Transfer/Tests',
+        __DIR__ . '/neo/Validator/Tests',
     ],
 
 ];

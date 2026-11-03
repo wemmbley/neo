@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Neo\Validator;
 
-use Neo\Support\DotNotation;
+use Neo\Config\DotNotation;
 
 /**
  * Проверка данных по правилам.
@@ -76,9 +76,7 @@ final class Validator
         private readonly array $rules,
         private readonly array $messages = [],
         private readonly array $attributes = [],
-    ) {
-        parent::__construct();
-    }
+    ) {}
 
     /**
      * @param array<string, mixed>              $data

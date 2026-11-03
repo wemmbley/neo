@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Neo\Lang;
 
-use Neo\Support\DotNotation;
+use Neo\Config\DotNotation;
 
 /**
  * Процессор локализации.

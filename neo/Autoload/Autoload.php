@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Neo\Autoload;
 
-final class Autoload
+class Autoload
 {
     private array $classes;
     private array $files;
@@ -33,7 +33,7 @@ final class Autoload
         }
     }
 
-    private function autoload(string $class): void
+    public function autoload(string $class): void
     {
         foreach ($this->classes as $path => $namespace) {
             $prefix = trim($namespace, '\\') . '\\';

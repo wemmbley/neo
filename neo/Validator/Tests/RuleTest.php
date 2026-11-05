@@ -905,4 +905,200 @@ describe('Rule', function () {
             expect($rule->passes())->toBeTrue();
         });
     });
+
+    describe('required()', function () {
+
+        it('fails on null', function () {
+            expect(Rule::of(null, 'name')->required()->errors())
+                ->toBe(['name' => ['Поле «name» обязательно для заполнения']]);
+        });
+
+        it('fails on empty string', function () {
+            expect(Rule::of('', 'name')->required()->fails())->toBeTrue();
+        });
+
+        it('fails on whitespace-only string', function () {
+            expect(Rule::of("  \t\n", 'name')->required()->fails())->toBeTrue();
+        });
+
+        it('fails on empty array', function () {
+            expect(Rule::of([], 'items')->required()->fails())->toBeTrue();
+        });
+
+        it('passes on filled values including 0, "0" and false', function () {
+            foreach (['a', '0', 0, 0.0, false, true, [1], ['k' => null]] as $value) {
+                expect(Rule::of($value, 'v')->required()->passes())->toBeTrue();
+            }
+        });
+
+        it('does not require anything without required()', function () {
+            expect(Rule::of(null, 'v')->passes())->toBeTrue();
+            expect(Rule::of('', 'v')->string()->passes())->toBeTrue();
+        });
+
+        it('reports required error before type error', function () {
+            expect(Rule::of(null, 'name')->required()->string()->errors())
+                ->toBe(['name' => ['Поле «name» обязательно для заполнения']]);
+        });
+
+        it('does not depend on position in the chain', function () {
+            $a = Rule::of('', 'name')->required()->string()->min(1)->errors();
+            $b = Rule::of('', 'name')->string()->min(1)->required()->errors();
+
+            expect($a)->toBe($b);
+            expect($a)->toHaveKey('name');
+        });
+
+        it('takes precedence over nullable()', function () {
+            expect(Rule::of(null, 'name')->nullable()->required()->fails())->toBeTrue();
+        });
+
+        it('works in the chain required()->string()->min(1)', function () {
+            $make = fn (mixed $v) => Rule::of($v, 'name')->required()->string()->min(1);
+
+            expect($make('a')->passes())->toBeTrue();
+            expect($make('')->fails())->toBeTrue();
+            expect($make(null)->fails())->toBeTrue();
+            expect($make(5)->errors())->toBe([
+                'name' => ['Поле «name» должно быть типа string, получено int'],
+            ]);
+        });
+
+        it('throws ValidationException from validate()', function () {
+            try {
+                Rule::of(null, 'name')->required()->validate();
+
+                expect(false)->toBeTrue();
+            } catch (ValidationException $exception) {
+                expect($exception)->toBeInstanceOf(ValidationException::class);
+                expect($exception->errors())->toHaveKey('name'); // если у исключения есть такой метод
+            }
+        });
+
+        it('returns the value from validate() when it is valid', function () {
+            expect(Rule::of('John', 'name')->required()->string()->validate())->toBe('John');
+        });
+
+    });
+
+    describe('required() inside shape()', function () {
+
+        it('reports missing required key', function () {
+            $errors = Rule::of([], 'config')->array()->shape([
+                'name' => fn (Rule $r) => $r->required()->string(),
+            ])->errors();
+
+            expect($errors)->toHaveKey('config.name');
+        });
+
+        it('reports present but empty value', function () {
+            $errors = Rule::of(['name' => ''], 'config')->array()->shape([
+                'name' => fn (Rule $r) => $r->required()->string(),
+            ])->errors();
+
+            expect($errors)->toBe([
+                'config.name' => ['Поле «config.name» обязательно для заполнения'],
+            ]);
+        });
+
+        it('skips optional missing key', function () {
+            $rule = Rule::of([], 'config')->array()->shape([
+                'name?' => fn (Rule $r) => $r->required()->string(),
+            ]);
+
+            expect($rule->passes())->toBeTrue();
+        });
+
+        it('validates optional key when present', function () {
+            $rule = Rule::of(['name' => null], 'config')->array()->shape([
+                'name?' => fn (Rule $r) => $r->required()->string(),
+            ]);
+
+            expect($rule->fails())->toBeTrue();
+        });
+
+        it('collects errors of all nested elements at once', function () {
+            $errors = Rule::of(['a' => '', 'b' => null], 'c')->array()->shape([
+                'a' => fn (Rule $r) => $r->required(),
+                'b' => fn (Rule $r) => $r->required(),
+            ])->errors();
+
+            expect(array_keys($errors))->toBe(['c.a', 'c.b']);
+        });
+
+    });
+
+    describe('min() / max() / size()', function () {
+
+        it('min counts characters of a string', function () {
+            expect(Rule::of('abc', 'v')->string()->min(3)->passes())->toBeTrue();
+            expect(Rule::of('ab', 'v')->string()->min(3)->errors())->toBe([
+                'v' => ['Поле «v» должно содержать не менее 3 символов'],
+            ]);
+        });
+
+        it('counts multibyte characters, not bytes', function () {
+            expect(Rule::of('привет', 'v')->string()->min(6)->passes())->toBeTrue();
+            expect(Rule::of('привет', 'v')->string()->max(6)->passes())->toBeTrue();
+            expect(Rule::of('привет', 'v')->string()->min(7)->fails())->toBeTrue();
+        });
+
+        it('min counts elements of an array', function () {
+            expect(Rule::of([1, 2], 'v')->array()->min(2)->passes())->toBeTrue();
+            expect(Rule::of([1], 'v')->array()->min(2)->errors())->toBe([
+                'v' => ['Поле «v» должно содержать не менее 2 элементов'],
+            ]);
+        });
+
+        it('min compares the value of a number', function () {
+            expect(Rule::of(5, 'v')->int()->min(5)->passes())->toBeTrue();
+            expect(Rule::of(4, 'v')->int()->min(5)->errors())->toBe([
+                'v' => ['Поле «v» должно быть не менее 5'],
+            ]);
+        });
+
+        it('max works for strings, arrays and numbers', function () {
+            expect(Rule::of('abcd', 'v')->string()->max(3)->fails())->toBeTrue();
+            expect(Rule::of([1, 2, 3], 'v')->array()->max(2)->fails())->toBeTrue();
+            expect(Rule::of(10, 'v')->int()->max(9)->fails())->toBeTrue();
+            expect(Rule::of('abc', 'v')->string()->max(3)->passes())->toBeTrue();
+        });
+
+        it('size checks exact length or count', function () {
+            expect(Rule::of('abc', 'v')->string()->size(3)->passes())->toBeTrue();
+            expect(Rule::of([1, 2], 'v')->array()->size(3)->fails())->toBeTrue();
+        });
+
+        it('rejects size checks on types without a size', function () {
+            expect(Rule::of(true, 'v')->bool()->min(1)->fails())->toBeTrue();
+        });
+
+        it('stops on the first failed check', function () {
+            $errors = Rule::of('a', 'v')->string()->min(3)->regex('/^\d+$/')->errors();
+
+            expect($errors['v'])->toHaveCount(1);
+        });
+
+    });
+
+    describe('types', function () {
+
+        it('treats several types as a union', function () {
+            expect(Rule::of(1, 'v')->string()->int()->passes())->toBeTrue();
+            expect(Rule::of('a', 'v')->string()->int()->passes())->toBeTrue();
+            expect(Rule::of(1.5, 'v')->string()->int()->fails())->toBeTrue();
+        });
+
+        it('allows null with nullable()', function () {
+            expect(Rule::of(null, 'v')->string()->nullable()->min(3)->passes())->toBeTrue();
+        });
+
+        it('does not run checks when the type does not match', function () {
+            $errors = Rule::of(5, 'v')->string()->min(3)->errors();
+
+            expect($errors['v'])->toHaveCount(1);
+            expect($errors['v'][0])->toContain('должно быть типа string');
+        });
+
+    });
 });

@@ -14,6 +14,14 @@ class ServiceContainer
 
     private array $resolving = [];
 
+    /**
+     * Ленивые загрузчики: abstract => closure, которая зарегистрирует
+     * провайдера, владеющего этим сервисом.
+     *
+     * @var array<string, Closure>
+     */
+    private array $deferred = [];
+
     private DependencyResolverContract $resolver;
 
     public function __construct(
@@ -43,7 +51,9 @@ class ServiceContainer
         bool                $shared = false,
     ): static
     {
-        unset($this->instances[$abstract]);
+        # Явная привязка важнее ленивой.
+        #
+        unset($this->instances[$abstract], $this->deferred[$abstract]);
 
         $this->bindings[$abstract] = [
             'concrete' => $concrete,
@@ -63,20 +73,56 @@ class ServiceContainer
 
     public function instance(string $abstract, mixed $instance): mixed
     {
-        unset($this->bindings[$abstract]);
+        unset($this->bindings[$abstract], $this->deferred[$abstract]);
 
         return $this->instances[$abstract] = $instance;
     }
 
     public function forget(string $abstract): void
     {
-        unset($this->bindings[$abstract], $this->instances[$abstract]);
+        unset(
+            $this->bindings[$abstract],
+            $this->instances[$abstract],
+            $this->deferred[$abstract],
+        );
     }
 
     public function has(string $abstract): bool
     {
         return isset($this->bindings[$abstract])
+            || isset($this->deferred[$abstract])
             || array_key_exists($abstract, $this->instances);
+    }
+
+    # -----------------------------------------------------------
+    # Ленивая загрузка
+    # -----------------------------------------------------------
+    #
+
+    /**
+     * Сервис появится, когда его впервые запросят: до этого момента
+     * контейнер вызовет $loader, и тот обязан добавить привязку.
+     */
+    public function defer(string $abstract, Closure $loader): static
+    {
+        $this->deferred[$abstract] = $loader;
+
+        return $this;
+    }
+
+    /**
+     * @param list<string> $abstracts
+     */
+    public function undefer(array $abstracts): void
+    {
+        foreach ($abstracts as $abstract) {
+            unset($this->deferred[$abstract]);
+        }
+    }
+
+    public function isDeferred(string $abstract): bool
+    {
+        return isset($this->deferred[$abstract]);
     }
 
     public function make(
@@ -84,6 +130,12 @@ class ServiceContainer
         array  $parameters = [],
     ): mixed
     {
+        # Загрузчик сам снимает с себя ленивость, повторно не сработает.
+        #
+        if (isset($this->deferred[$abstract])) {
+            ($this->deferred[$abstract])();
+        }
+
         if ($this->hasInstance($abstract)) {
             return $this->getInstance($abstract);
         }

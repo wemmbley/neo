@@ -37,7 +37,10 @@ final class Rule
     /** Разрешено ли значение null. */
     private bool $nullable = false;
 
-    /** @var Closure Очередь проверок. */
+    /** Значение обязательно: не null, не пустая строка, не пустой массив. */
+    private bool $required = false;
+
+    /** @var list<Closure> Очередь проверок. */
     private array $checks = [];
 
     /** @var array<string, list<string>> Ошибки последнего прогона. */
@@ -93,6 +96,18 @@ final class Rule
     public function nullable(): self
     {
         $this->nullable = true;
+
+        return $this;
+    }
+
+    /**
+     * Значение обязательно: null, '', строка из одних пробелов и [] не проходят.
+     * Проверяется первым, до типа и остальных правил, независимо от порядка в цепочке.
+     * 0, '0' и false считаются заполненными.
+     */
+    public function required(): self
+    {
+        $this->required = true;
 
         return $this;
     }
@@ -404,6 +419,12 @@ final class Rule
     {
         $this->errors = [];
 
+        if ($this->required && $this->isBlank($this->data)) {
+            $this->reject('обязательно для заполнения');
+
+            return $this->errors;
+        }
+
         if ($this->data === null && $this->nullable) {
             return [];
         }
@@ -572,5 +593,12 @@ final class Rule
     private function reject(string $format, string|int|float ...$args): void
     {
         $this->errors[$this->path][] = sprintf('Поле «%s» ' . $format, $this->path, ...$args);
+    }
+
+    private function isBlank(mixed $value): bool
+    {
+        return $value === null
+            || $value === []
+            || (is_string($value) && trim($value) === '');
     }
 }

@@ -1,0 +1,9 @@
+[2026-11-05 01:27:20] info: Пользователь 5 вошёл {"id":5}
+[2026-11-05 01:27:20] warning: x
+[2026-11-05 01:27:20] error: boom {"exception":{"class":"RuntimeException","message":"boom","code":0,"file":"C:\\Users\\Rustam\\Desktop\\Panel\\www\\engine\\public\\index.php","line":28,"trace":"#0 {main}"}}
+[2026-11-05 01:27:40] info: Пользователь 5 вошёл {"id":5}
+[2026-11-05 01:27:40] warning: x
+[2026-11-05 01:27:40] error: boom {"exception":{"class":"RuntimeException","message":"boom","code":0,"file":"C:\\Users\\Rustam\\Desktop\\Panel\\www\\engine\\public\\index.php","line":28,"trace":"#0 {main}"}}
+[2026-11-05 02:15:40] info: Пользователь 5 вошёл {"id":5}
+[2026-11-05 02:15:40] warning: x
+[2026-11-05 02:15:40] error: boom {"exception":{"class":"RuntimeException","message":"boom","code":0,"file":"C:\\Users\\Rustam\\Desktop\\Panel\\www\\engine\\public\\index.php","line":28,"trace":"#0 {main}"}}

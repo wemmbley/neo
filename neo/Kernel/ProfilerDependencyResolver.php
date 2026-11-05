@@ -1,19 +1,59 @@
 <?php
 
-
 declare(strict_types=1);
 
 namespace Neo\Kernel;
 
-use Throwable;
-
+/**
+ * Обёртка над любым резолвером, собирающая статистику.
+ *
+ * Время считается двумя способами:
+ *  - inclusive: вместе с вложенными зависимостями;
+ *  - self: только собственная работа (inclusive минус вложенные).
+ * Общее время (total_time) складывается из self, поэтому
+ * вложенные операции не считаются дважды.
+ */
 class ProfilerDependencyResolver implements DependencyResolverContract
 {
-    private array $statistics = [];
+    /** Сколько операций максимум попадёт в trace (защита памяти). */
+    private const int TRACE_LIMIT = 500;
 
-    private int $depth = 0;
+    private int $resolutions = 0;
 
-    private int $peakMemory = 0;
+    private int $calls = 0;
+
+    private int $successful = 0;
+
+    private int $failed = 0;
+
+    private float $totalTime = 0.0;
+
+    private float $maxTime = 0.0;
+
+    private int $memoryDelta = 0;
+
+    private int $maxDepth = 0;
+
+    /**
+     * Статистика по именам.
+     *
+     * @var array<string, array{count:int, success:int, failed:int, total_time:float, self_time:float, max_time:float}>
+     */
+    private array $classes = [];
+
+    /**
+     * Операции в порядке начала (родитель раньше детей), depth даёт дерево.
+     *
+     * @var list<array{operation:string, name:string, depth:int, time:float, self_time:float, memory:int, success:bool}>
+     */
+    private array $trace = [];
+
+    /**
+     * Стек открытых операций: для каждой копится время вложенных.
+     *
+     * @var list<float>
+     */
+    private array $frames = [];
 
     public function __construct(
         private readonly DependencyResolverContract $resolver,
@@ -59,16 +99,24 @@ class ProfilerDependencyResolver implements DependencyResolverContract
         callable $callback,
     ): mixed
     {
+        $depth = count($this->frames);
+
+        $this->frames[] = 0.0;
+        $this->maxDepth = max($this->maxDepth, $depth + 1);
+
+        # Место в trace резервируем сразу, чтобы родитель стоял перед детьми.
+        #
+        $slot = null;
+
+        if (count($this->trace) < self::TRACE_LIMIT) {
+            $this->trace[] = null;
+            $slot = array_key_last($this->trace);
+        }
+
+        # false: реальные байты, а не блоки по 2 МБ (иначе дельта почти всегда 0).
+        #
+        $startMemory = memory_get_usage(false);
         $startTime = hrtime(true);
-        $startMemory = memory_get_usage(true);
-
-        $this->depth++;
-
-        $this->peakMemory = max(
-            $this->peakMemory,
-            memory_get_peak_usage(true),
-        );
-
         $success = false;
 
         try {
@@ -78,14 +126,23 @@ class ProfilerDependencyResolver implements DependencyResolverContract
             return $result;
         } finally {
             $elapsed = (hrtime(true) - $startTime) / 1_000_000;
-            $memory = memory_get_usage(true) - $startMemory;
+            $memory = memory_get_usage(false) - $startMemory;
 
-            $this->depth--;
+            $nested = array_pop($this->frames);
+
+            # Своё время родителю не принадлежит: плюсуем его ему во «вложенные».
+            #
+            if ($this->frames !== []) {
+                $this->frames[array_key_last($this->frames)] += $elapsed;
+            }
 
             $this->record(
                 $operation,
                 $name,
+                $depth,
+                $slot,
                 $elapsed,
+                max(0.0, $elapsed - $nested),
                 $memory,
                 $success,
             );
@@ -95,61 +152,52 @@ class ProfilerDependencyResolver implements DependencyResolverContract
     private function record(
         string $operation,
         string $name,
+        int    $depth,
+        ?int   $slot,
         float  $time,
+        float  $selfTime,
         int    $memory,
         bool   $success,
     ): void
     {
-        $this->statistics['total_resolutions'] =
-            ($this->statistics['total_resolutions'] ?? 0) + ($operation === 'resolve' ? 1 : 0);
+        $operation === 'resolve' ? $this->resolutions++ : $this->calls++;
+        $success ? $this->successful++ : $this->failed++;
 
-        $this->statistics['total_calls'] =
-            ($this->statistics['total_calls'] ?? 0) + ($operation === 'call' ? 1 : 0);
+        $this->totalTime += $selfTime;
+        $this->maxTime = max($this->maxTime, $time);
+        $this->memoryDelta += $memory;
 
-        $this->statistics['successful_resolutions'] =
-            ($this->statistics['successful_resolutions'] ?? 0) + ($success ? 1 : 0);
-
-        $this->statistics['failed_resolutions'] =
-            ($this->statistics['failed_resolutions'] ?? 0) + (!$success ? 1 : 0);
-
-        $this->statistics['total_time'] =
-            ($this->statistics['total_time'] ?? 0.0) + $time;
-
-        $this->statistics['max_time'] = max(
-            $this->statistics['max_time'] ?? 0.0,
-            $time,
-        );
-
-        $this->statistics['total_memory_delta'] =
-            ($this->statistics['total_memory_delta'] ?? 0) + $memory;
-
-        $this->statistics['peak_memory'] = max(
-            $this->statistics['peak_memory'] ?? 0,
-            $this->peakMemory,
-        );
-
-        $this->statistics['max_depth'] = max(
-            $this->statistics['max_depth'] ?? 0,
-            $this->depth + 1,
-        );
-
-        $this->statistics['classes'][$name] ??= [
+        $this->classes[$name] ??= [
             'count' => 0,
             'success' => 0,
             'failed' => 0,
             'total_time' => 0.0,
+            'self_time' => 0.0,
             'max_time' => 0.0,
         ];
 
-        $class = &$this->statistics['classes'][$name];
+        $class = &$this->classes[$name];
 
         $class['count']++;
         $class['success'] += $success ? 1 : 0;
         $class['failed'] += $success ? 0 : 1;
         $class['total_time'] += $time;
+        $class['self_time'] += $selfTime;
         $class['max_time'] = max($class['max_time'], $time);
 
         unset($class);
+
+        if ($slot !== null) {
+            $this->trace[$slot] = [
+                'operation' => $operation,
+                'name' => $name,
+                'depth' => $depth,
+                'time' => $time,
+                'self_time' => $selfTime,
+                'memory' => $memory,
+                'success' => $success,
+            ];
+        }
     }
 
     private function getCallbackName(
@@ -175,39 +223,78 @@ class ProfilerDependencyResolver implements DependencyResolverContract
             : 'Closure';
     }
 
+    /**
+     * Времена в миллисекундах, память в байтах.
+     *
+     * total_time    сумма self-времени всех операций (без двойного счёта);
+     * average_time  total_time / число операций (resolve + call);
+     * max_time      самая долгая операция, вместе с вложенными;
+     * peak_memory   пик процесса на момент вызова.
+     */
     public function getStatistics(): array
     {
-        $statistics = array_replace([
-            'total_resolutions' => 0,
-            'total_calls' => 0,
+        $operations = $this->resolutions + $this->calls;
 
-            'successful_resolutions' => 0,
-            'failed_resolutions' => 0,
+        return [
+            'total_resolutions' => $this->resolutions,
+            'total_calls' => $this->calls,
 
-            'total_time' => 0.0,
-            'average_time' => 0.0,
-            'max_time' => 0.0,
+            'successful_resolutions' => $this->successful,
+            'failed_resolutions' => $this->failed,
 
-            'total_memory_delta' => 0,
-            'peak_memory' => 0,
-            'max_depth' => 0,
+            'total_time' => $this->totalTime,
+            'average_time' => $operations > 0
+                ? $this->totalTime / $operations
+                : 0.0,
+            'max_time' => $this->maxTime,
 
-            'classes' => [],
-        ], $this->statistics);
+            'total_memory_delta' => $this->memoryDelta,
+            'peak_memory' => memory_get_peak_usage(true),
+            'max_depth' => $this->maxDepth,
 
-        $count = $statistics['total_resolutions'];
+            'classes' => $this->classes,
+        ];
+    }
 
-        $statistics['average_time'] = $count > 0
-            ? $statistics['total_time'] / $count
-            : 0.0;
+    /**
+     * Операции в порядке запуска; depth показывает вложенность.
+     *
+     * @return list<array{operation:string, name:string, depth:int, time:float, self_time:float, memory:int, success:bool}>
+     */
+    public function getTrace(): array
+    {
+        return $this->trace;
+    }
 
-        return $statistics;
+    /**
+     * Самые «дорогие» сервисы по собственному времени.
+     *
+     * @return array<string, array<string, int|float>>
+     */
+    public function getSlowest(int $limit = 10): array
+    {
+        $classes = $this->classes;
+
+        uasort(
+            $classes,
+            static fn (array $a, array $b): int => $b['self_time'] <=> $a['self_time'],
+        );
+
+        return array_slice($classes, 0, $limit, true);
     }
 
     public function reset(): void
     {
-        $this->statistics = [];
-        $this->depth = 0;
-        $this->peakMemory = 0;
+        $this->resolutions = 0;
+        $this->calls = 0;
+        $this->successful = 0;
+        $this->failed = 0;
+        $this->totalTime = 0.0;
+        $this->maxTime = 0.0;
+        $this->memoryDelta = 0;
+        $this->maxDepth = 0;
+        $this->classes = [];
+        $this->trace = [];
+        $this->frames = [];
     }
 }

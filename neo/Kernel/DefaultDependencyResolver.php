@@ -170,7 +170,7 @@ class DefaultDependencyResolver implements DependencyResolverContract
                     continue;
                 }
 
-                if ($container->has($class) || class_exists($class)) {
+                if ($container->has($class) || $this->isInstantiable($class)) {
                     $arguments[] = $container->make($class);
                     continue;
                 }
@@ -192,6 +192,15 @@ class DefaultDependencyResolver implements DependencyResolverContract
         }
 
         return $arguments;
+    }
+
+    /** Можно ли собрать класс автоматически
+     * (не абстрактный, не Closure, открытый конструктор).
+     */
+    private function isInstantiable(string $class): bool
+    {
+        return class_exists($class)
+            && (new \ReflectionClass($class))->isInstantiable();
     }
 
     private function coerce(

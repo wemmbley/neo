@@ -38,4 +38,13 @@ final class ValidationException extends \RuntimeException
 
         return $messages[0] ?? null;
     }
+
+    public function summary(): string
+    {
+        $parts = [];
+        foreach ($this->errors as $field => $messages) {
+            $parts[] = $field . ': ' . implode(' ', $messages);
+        }
+        return $this->getMessage() . ' ' . implode('; ', $parts);
+    }
 }

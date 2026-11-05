@@ -5,13 +5,28 @@ require_once dirname(__DIR__) . '/bootstrap/Bootstrap.php';
 use App\Services\MyService;
 use Bootstrap\Bootstrap;
 
-$bootstrap = new Bootstrap();
-$bootstrap->boot();
+try {
 
-app(MyService::class)->handle();
+    $bootstrap = new Bootstrap();
+    $bootstrap->boot();
 
-$container = app()->getContainer();
+    $isDisplayErrors = env('APP_DISPLAY_ERRORS', false);
+    if($isDisplayErrors) {
+        ini_set('display_errors', 1);
+    }
 
-$resolver = $container->getResolver();
+    app(MyService::class)->handle();
 
-profiler();
+    $container = app()->getContainer();
+
+    $resolver = $container->getResolver();
+
+    Storage::disk('local')->put('1.txt', 'hi!');
+
+    Log::info('Пользователь {id} вошёл', ['id' => 5]); // подстановка плейсхолдера
+    Log::stack(['single', 'daily'])->warning('x');
+    Log::report(new RuntimeException('boom')); // во все каналы, сбои гасятся
+
+} catch (\Throwable $exception) {
+    throw $exception;
+}

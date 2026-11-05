@@ -122,7 +122,9 @@ describe('Construction', function () {
     });
 
     it('accepts providers in constructor', function () {
-        $provider = new stdClass();
+        $provider = new class extends ServiceProvider {
+            public function __construct() {}
+        };
 
         $app = new Application(
             new ServiceContainer(),

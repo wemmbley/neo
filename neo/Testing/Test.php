@@ -39,10 +39,28 @@ final class Test
 
     /**
      * Пропускает тест.
+     *
+     *   ->skip()                              // всегда
+     *   ->skip('причина')                     // всегда, с причиной (как раньше)
+     *   ->skip(PHP_OS_FAMILY === 'Windows', 'нет chmod')   // по условию
+     *   ->skip(fn () => !extension_loaded('gd'), 'нужен GD') // условие вычисляется при регистрации
+     *
+     * @param bool|\Closure(): bool|string $condition Условие или сразу текст причины.
      */
-    public function skip(string $reason = ''): static
+    public function skip(bool|\Closure|string $condition = true, string $reason = ''): static
     {
-        $this->skipReason = $reason;
+        if (is_string($condition)) {
+            $reason = $condition;
+            $condition = true;
+        }
+
+        if ($condition instanceof \Closure) {
+            $condition = (bool) $condition();
+        }
+
+        if ($condition) {
+            $this->skipReason = $reason;
+        }
 
         return $this;
     }

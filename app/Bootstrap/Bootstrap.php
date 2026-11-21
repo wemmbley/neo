@@ -9,6 +9,7 @@ use Neo\Foundation\Autoload\Autoload;
 use Neo\Foundation\Config\Config;
 use Neo\Foundation\Console\CommandProcessor;
 use Neo\Foundation\Kernel\Kernel;
+use Neo\Foundation\Kernel\Requirements;
 use Neo\Foundation\Kernel\ServiceContainer;
 
 /**
@@ -51,6 +52,7 @@ class Bootstrap
             return $this->kernel;
         }
 
+        $this->checkRequirements();
         $this->registerAutoload();
 
         $kernel = new Kernel(
@@ -83,6 +85,17 @@ class Bootstrap
             $this->config['autoload']['files'] ?? [],
         )->load();
 
+    }
+
+    private function checkRequirements(): void
+    {
+        if (!isset($this->config['requires'])) {
+            return;
+        }
+
+        require_once $this->config['autoload']['requirements'];
+
+        Requirements::check($this->config['requires']);
     }
 
     private function setDefaultTimezone(): void

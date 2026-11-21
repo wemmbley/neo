@@ -127,10 +127,25 @@ return [
 
     # Файл .env. Нет ключа или null: .env не загружается.
     'env' => $base . '/.env',
+    
+    # Веосия PHP и обязательные расширения.
+    'requires' => [
+        'php >= 8.5',
+        'php_ext' => [
+            'curl',
+            'pdo_mysql',
+            'pdo_sqlite',
+            'sockets',
+            'zip',
+        ],
+    ],
 
     'autoload' => [
         # Загрузчик подключается вручную, поэтому путь к нему задан отдельно.
         'loader' => $base . '/neo/Foundation/Autoload/Autoload.php',
+        
+        # Путь к файлу проверяющему версию PHP и его пакеты.
+        'requirements' => $base . '/neo/Foundation/Kernel/Requirements.php',
 
         # Путь => пространство имён.
         'classes' => [

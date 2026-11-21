@@ -11,11 +11,11 @@
 - Конфигурации в массиве и хелпер `config()`/`env()`.
 - ServiceProvider, ServiceContainer, Facade.
 - Консоль приложения и отдельные команды `php cli`.
-- Профилировщик с замерами для контейнера `profiler()`.
 
 ## 🩺🩸Diagnostic
 - Встроенный тестировщик `php cli test`
 - Встроенный дампер `dd()`/`dump()`
+- Профилировщик с замерами `profiler()`.
 
 ## Консоль
 <img src="./docs/Images/Console.png">

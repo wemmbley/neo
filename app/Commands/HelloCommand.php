@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
-use Neo\Console\Commands\Command;
+use Neo\Foundation\Console\Commands\Command;
 
 class HelloCommand extends Command
 {

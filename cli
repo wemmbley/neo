@@ -3,7 +3,7 @@
 
 declare(strict_types=1);
 
-use app\Bootstrap\Bootstrap;
+use App\Bootstrap\Bootstrap;
 
 $config = require __DIR__ . '/app/Config/Bootstrap.php';
 

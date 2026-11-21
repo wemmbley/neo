@@ -9,7 +9,7 @@ return [
 
     'autoload' => [
 
-        'loader'  => $base . '/neo/Autoload/Autoload.php',
+        'loader'  => $base . '/neo/Foundation/Autoload/Autoload.php',
 
         'classes' => [
             $base . '/neo' => 'Neo',
@@ -17,8 +17,8 @@ return [
         ],
 
         'files' => [
-            $base . '/neo/Kernel/helpers.php',
-            $base . '/neo/Config/helpers.php',
+            $base . '/neo/Foundation/Kernel/helpers.php',
+            $base . '/neo/Foundation/Config/helpers.php',
         ],
     ],
 ];

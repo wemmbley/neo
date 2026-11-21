@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace app\Bootstrap;
+namespace App\Bootstrap;
 
-use Neo\Autoload\AliasLoader;
-use Neo\Autoload\Autoload;
-use Neo\Config\Config;
-use Neo\Console\CommandProcessor;
-use Neo\Kernel\Kernel;
-use Neo\Kernel\ServiceContainer;
+use Neo\Foundation\Autoload\AliasLoader;
+use Neo\Foundation\Autoload\Autoload;
+use Neo\Foundation\Config\Config;
+use Neo\Foundation\Console\CommandProcessor;
+use Neo\Foundation\Kernel\Kernel;
+use Neo\Foundation\Kernel\ServiceContainer;
 
 /**
  * Точка входа для web (run) и консоли (console).
@@ -72,7 +72,7 @@ class Bootstrap
         #
         # Сам загрузчик подключаем руками: автозагрузки ещё нет.
         #
-        require_once $this->config['base_path'] . '/neo/Autoload/Autoload.php';
+        require_once $this->config['autoload']['loader'];
 
         new Autoload(
             $this->config['autoload']['classes'],

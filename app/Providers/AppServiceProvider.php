@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
-use Neo\Kernel\ServiceProvider;
+use Neo\Foundation\Kernel\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {

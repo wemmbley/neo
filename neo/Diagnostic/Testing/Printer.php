@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Neo\Foundation\Testing;
+namespace Neo\Diagnostic\Testing;
 
 /**
  * Красивый вывод результатов в консоль в духе Pest: цветные плашки PASS/FAIL,

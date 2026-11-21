@@ -12,9 +12,9 @@ declare(strict_types=1);
  *   it('...', function (int $a, int $b) {...})->with([[1, 2], [3, 4]]);
  */
 
-use Neo\Foundation\Testing\Expectation;
-use Neo\Foundation\Testing\Runner;
-use Neo\Foundation\Testing\Test;
+use Neo\Diagnostic\Testing\Expectation;
+use Neo\Diagnostic\Testing\Runner;
+use Neo\Diagnostic\Testing\Test;
 
 if (!function_exists('test')) {
     /** Объявляет тест. Без замыкания тест считается «todo». */

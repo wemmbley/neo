@@ -4,17 +4,16 @@ declare(strict_types=1);
 
 namespace Neo\Foundation\Kernel\Bootstrappers;
 
+use Neo\Diagnostic\Testing\Commands\RunTestsCommand;
 use Neo\Foundation\Config\Config;
 use Neo\Foundation\Console\CommandProcessor;
 use Neo\Foundation\Console\Commands\HelpCommand;
 use Neo\Foundation\Console\Output;
 use Neo\Foundation\Kernel\BootstrapperContract;
 use Neo\Foundation\Kernel\Commands\ConfigShowCommand;
-use Neo\Foundation\Kernel\Commands\EnvSetCommand;
 use Neo\Foundation\Kernel\Commands\ProvidersCommand;
 use Neo\Foundation\Kernel\Kernel;
 use Neo\Foundation\Kernel\ServiceContainer;
-use Neo\Foundation\Testing\Commands\RunTestsCommand;
 
 /**
  * Шаг 3. Привязывает консоль. Всё лениво: в вебе Output и

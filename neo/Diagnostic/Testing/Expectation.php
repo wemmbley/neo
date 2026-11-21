@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Neo\Foundation\Testing;
+namespace Neo\Diagnostic\Testing;
 
 /**
  * Проверки в стиле Pest: `expect($value)->toBe(1)->not->toBeNull()`.

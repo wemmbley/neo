@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Neo\Foundation\Testing;
+namespace Neo\Diagnostic\Testing;
 
 /**
  * Описание одного теста. Возвращается из `test()` и `it()`,

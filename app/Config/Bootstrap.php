@@ -21,8 +21,8 @@ return [
         'files' => [
             $base . '/neo/Foundation/Kernel/helpers.php',
             $base . '/neo/Foundation/Config/helpers.php',
-            $base . '/neo/Foundation/Debug/helpers.php',
-            $base . '/neo/Foundation/Testing/helpers.php',
+            $base . '/neo/Diagnostic/Debug/helpers.php',
+            $base . '/neo/Diagnostic/Testing/helpers.php',
         ],
     ],
 ];

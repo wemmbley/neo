@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Neo\Foundation\Debug;
+namespace Neo\Diagnostic\Debug;
 
 /**
  * VarDump — один файл, один класс: аналог Symfony VarDumper + рекурсивное раскрытие как в Kint.

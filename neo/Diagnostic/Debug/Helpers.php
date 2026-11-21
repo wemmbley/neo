@@ -1,6 +1,6 @@
 <?php
 
-use Neo\Foundation\Debug\Dumper;
+use Neo\Diagnostic\Debug\Dumper;
 
 if (!function_exists('dump')) {
     function dump(mixed ...$vars): mixed

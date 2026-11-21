@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Neo\Foundation\Testing\Commands;
+namespace Neo\Diagnostic\Testing\Commands;
 
+use Neo\Diagnostic\Testing\Runner;
 use Neo\Foundation\Config\Config;
 use Neo\Foundation\Console\Commands\Command;
-use Neo\Foundation\Testing\Runner;
 
 class RunTestsCommand extends Command
 {

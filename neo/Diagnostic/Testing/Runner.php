@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Neo\Foundation\Testing;
+namespace Neo\Diagnostic\Testing;
 
 /**
  * Запускает тесты: загружает файлы, собирает объявленные `test()` / `it()`,

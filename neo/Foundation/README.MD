@@ -18,8 +18,6 @@
 | `Config`        | `Config`, `Env`, `DotNotation`, хелперы `env()` и `config()`                |
 | `Console`       | `CommandProcessor`, `Command`, `Input`, `Output`, `HelpCommand`             |
 | `Kernel`        | `Kernel`, `ServiceContainer`, резолверы, провайдеры, фасады, бутстрапперы   |
-| `Debug`         | `dd()`, `dump()`                                                            |
-| `Testing`       | Запуск тестов командой `php cli test`                                       |
 
 ## Структура проекта
 
@@ -367,14 +365,3 @@ class HelloCommand extends Command
 ```
 
 Если команда не нуждается в загрузке провайдеров, поставьте `public bool $disableMounting = true;`.
-
-## Тестирование
-
-Команда `php cli test` запускает тесты из папок `console.tests`. Можно указать конкретный
-файл и фильтр по имени: `php cli test app/Tests/FooTest.php --filter=name`.
-
-## Дамп и профилировщик
-
-- `dd()` и `dump()`: вывод значений при отладке.
-- `APP_PROFILER=true` в `.env`, затем `profiler()` в нужном месте: статистика резолвов,
-  время и память по сервисам.

@@ -8,14 +8,17 @@ return [
     'base_path' => $base,
 
     'autoload' => [
+
+        'loader'  => $base . '/neo/Autoload/Autoload.php',
+
         'classes' => [
-            $base . '/src' => 'Neo',
+            $base . '/neo' => 'Neo',
             $base . '/app' => 'App',
         ],
 
         'files' => [
-            $base . '/src/Kernel/helpers.php',
-            $base . '/src/Config/helpers.php',
+            $base . '/neo/Kernel/helpers.php',
+            $base . '/neo/Config/helpers.php',
         ],
     ],
 ];

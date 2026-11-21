@@ -72,12 +72,12 @@ class Bootstrap
         #
         # Сам загрузчик подключаем руками: автозагрузки ещё нет.
         #
-        require_once $this->config['base_path'] . '/src/Autoload/Autoload.php';
+        require_once $this->config['base_path'] . '/neo/Autoload/Autoload.php';
 
-        (new Autoload(
+        new Autoload(
             $this->config['autoload']['classes'],
             $this->config['autoload']['files'] ?? [],
-        ))->load();
+        )->load();
 
     }
 

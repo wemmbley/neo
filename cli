@@ -9,4 +9,4 @@ $config = require __DIR__ . '/app/Config/Bootstrap.php';
 
 require_once __DIR__ . '/app/Bootstrap/Bootstrap.php';
 
-exit((new Bootstrap($config))->console());
+exit(new Bootstrap($config)->console());

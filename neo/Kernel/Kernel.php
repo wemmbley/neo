@@ -97,11 +97,10 @@ final class Kernel
      */
     public function __construct(
         public readonly ServiceContainer $container,
-        string $basePath = '',
+        string $basePath,
         array $providers = [],
     ) {
-        $this->basePath = rtrim($basePath !== '' ? $basePath : (string) getcwd(), '/\\');
-
+        $this->basePath = rtrim($basePath, '/\\');
         self::$instance = $this;
 
         # Без этого контейнер при автосборке ServiceProvider(Kernel $app)
@@ -169,7 +168,7 @@ final class Kernel
     }
 
     /**
-     * Папка с файлами настроек (app/Config).
+     * Папка с файлами настроек.
      */
     public function configPath(string $path = ''): string
     {

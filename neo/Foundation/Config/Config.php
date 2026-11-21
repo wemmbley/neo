@@ -66,7 +66,7 @@ final class Config
                 throw new \UnexpectedValueException("Файл настроек {$file} должен возвращать массив.");
             }
 
-            $items[basename($file, '.php')] = $value;
+            $items[strtolower(basename($file, '.php'))] = $value;
         }
 
         return $items;

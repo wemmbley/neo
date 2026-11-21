@@ -1,3 +1,5 @@
+<img src="./docs/Images/Neo.png">
+
 # Neo PHP Framework
 
 Ядро приложения для PHP. PHP 8.5+
@@ -8,24 +10,17 @@
 - ServiceProvider, ServiceContainer, Facade.
 - Консоль приложения и отдельные команды `php cli`.
 - Профилировщик с замерами для контейнера `profiler()`.
+- Встроенный тестировщик `php cli test`
+- Встроенный дампер `dd()`/`dump()`
 
-## Провайдеры
+## Консоль
+<img src="./docs/Images/Console.png">
 
-#### Пример провайдера
+## Тестирование
+<img src="./docs/Images/Testing.png">
 
-```php
-class FooProvider extends ServiceProvider
-{
-    public function register(): void
-    {
-        $this->loadConfig(__DIR__ . '/config.php', 'foo'); // конфиг приложения сильнее
-        $this->app->singleton(FooContract::class, Foo::class);
-        $this->app->bind(FooContract::class, Foo::class);
-        $this->commands([FooCommand::class]);
-    }
-}
-```
+## Профайлер
+<img src="./docs/Images/Profiler.png">
 
-## Профилировщик
-
-`APP_PROFILER=true` в `.env`, затем `profiler()` в нужном месте.
+Просто пишем `profiler()` в нужном месте. 
+Обязательное условие: `APP_PROFILER=true` в `.env`.

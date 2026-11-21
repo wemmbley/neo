@@ -16,6 +16,10 @@ final class EnvBootstrapper implements BootstrapperContract
 {
     public function bootstrap(Kernel $kernel): void
     {
-        Env::load($kernel->basePath('.env'));
+        $path = $kernel->envPath();
+
+        if ($path !== null) {
+            Env::load($path);
+        }
     }
 }

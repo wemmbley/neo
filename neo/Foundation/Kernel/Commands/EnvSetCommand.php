@@ -23,7 +23,7 @@ class EnvSetCommand extends Command
 
     public function handle(): int
     {
-        $path = $this->kernel->basePath('.env');
+        $path = $this->kernel->envPath() ?? $this->kernel->basePath('.env');
 
         try {
             Env::writeToFile($path, $this->argument('key'), $this->argument('value'));

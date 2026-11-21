@@ -14,6 +14,7 @@ use Neo\Foundation\Kernel\Commands\EnvSetCommand;
 use Neo\Foundation\Kernel\Commands\ProvidersCommand;
 use Neo\Foundation\Kernel\Kernel;
 use Neo\Foundation\Kernel\ServiceContainer;
+use Neo\Foundation\Testing\Commands\RunTestsCommand;
 
 /**
  * Шаг 3. Привязывает консоль. Всё лениво: в вебе Output и
@@ -28,8 +29,9 @@ final class ConsoleBootstrapper implements BootstrapperContract
     private const array BUILT_IN = [
         HelpCommand::class,
         ConfigShowCommand::class,
-        EnvSetCommand::class,
+//        EnvSetCommand::class,
         ProvidersCommand::class,
+        RunTestsCommand::class,
     ];
 
     public function bootstrap(Kernel $kernel): void

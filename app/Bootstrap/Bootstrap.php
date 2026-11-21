@@ -53,13 +53,17 @@ class Bootstrap
 
         $this->registerAutoload();
 
-        $kernel = new Kernel(new ServiceContainer(), $this->config['base_path']);
+        $kernel = new Kernel(
+            new ServiceContainer(),
+            $this->config['base_path'],
+            envFile: $this->config['env'] ?? null,
+        );
         $kernel->bootstrap();
 
         /** @var Config $config */
         $config = $kernel->make(Config::class);
 
-        (new AliasLoader())
+        new AliasLoader()
             ->facades((array) $config->get('app.facades', []))
             ->register();
 

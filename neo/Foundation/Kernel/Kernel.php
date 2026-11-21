@@ -99,6 +99,7 @@ final class Kernel
         public readonly ServiceContainer $container,
         string $basePath,
         array $providers = [],
+        private readonly ?string $envFile = null,
     ) {
         $this->basePath = rtrim($basePath, '/\\');
         self::$instance = $this;
@@ -424,4 +425,6 @@ final class Kernel
         string $abstract,
         mixed $instance,
     ): mixed { return $this->container->instance($abstract, $instance); }
+
+    public function envPath(): ?string { return $this->envFile; }
 }

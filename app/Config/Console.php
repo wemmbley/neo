@@ -11,4 +11,11 @@ return [
         App\Commands\HelloCommand::class,
     ],
 
+    #
+    # Список папок с тестами которые будут вызываться при php cli test
+    #
+    'tests' => [
+        base_path('app/Tests'),
+    ],
+
 ];

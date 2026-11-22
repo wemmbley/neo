@@ -30,7 +30,7 @@ if (!function_exists('config')) {
         mixed $default = null
     ): mixed
     {
-        $config = app(Config::class);
+        $config = kernel(Config::class);
 
         if ($key === null) {
             return $config;

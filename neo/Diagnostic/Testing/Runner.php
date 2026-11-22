@@ -25,6 +25,12 @@ final class Runner
     /** @var list<Test> Тесты текущего файла. */
     private array $tests = [];
 
+    /** @var list<\Closure> */
+    private array $globalBefore = [];
+
+    /** @var list<\Closure> */
+    private array $globalAfter = [];
+
     private function __construct()
     {
         $this->scope = new Scope();
@@ -33,6 +39,16 @@ final class Runner
     public static function instance(): self
     {
         return self::$instance ??= new self();
+    }
+
+    public function globalBeforeEach(\Closure $hook): void
+    {
+        $this->globalBefore[] = $hook;
+    }
+
+    public function globalAfterEach(\Closure $hook): void
+    {
+        $this->globalAfter[] = $hook;
     }
 
     /**
@@ -242,6 +258,10 @@ final class Runner
         ob_start();
 
         try {
+            foreach ($this->globalBefore as $hook) {
+                $this->invoke($hook, $context);
+            }
+
             foreach ($chain as $scope) {
                 foreach ($scope->before as $hook) {
                     $this->invoke($hook, $context);
@@ -260,6 +280,14 @@ final class Runner
                 } catch (\Throwable $e) {
                     $error ??= $e;
                 }
+            }
+        }
+
+        foreach ($this->globalAfter as $hook) {
+            try {
+                $this->invoke($hook, $context);
+            } catch (\Throwable $e) {
+                $error ??= $e;
             }
         }
 

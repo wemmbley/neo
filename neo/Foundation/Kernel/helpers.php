@@ -3,12 +3,12 @@
 use Neo\Foundation\Kernel\Kernel;
 
 /**
- * Kernel или объект из контейнера: `app()`, `app(Router::class)`.
+ * Kernel или объект из контейнера: `kernel()`, `kernel(Router::class)`.
  *
  * @param array<string, mixed> $parameters
  */
-if (!function_exists('app')) {
-    function app(
+if (!function_exists('kernel')) {
+    function kernel(
         ?string $abstract = null,
         array $parameters = []
     ): mixed
@@ -36,7 +36,7 @@ if (!function_exists('base_path')) {
 if (!function_exists('profiler')) {
     function profiler(): void
     {
-        $stats = app()->getContainer()->getProfiler()?->getStatistics();
+        $stats = kernel()->getContainer()->getProfiler()?->getStatistics();
 
         function_exists('dd') ? dd($stats) : var_dump($stats);
     }

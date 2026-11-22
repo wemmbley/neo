@@ -246,6 +246,14 @@ final class Kernel
     }
 
     /**
+     * Текущий экземпляр или null (в отличие от getInstance() не бросает).
+     */
+    public static function peekInstance(): ?self
+    {
+        return self::$instance;
+    }
+
+    /**
      * Разрешает зависимость через контейнер.
      */
     public function make(

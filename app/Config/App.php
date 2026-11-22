@@ -17,7 +17,9 @@ return [
     # Провайдеры, которые Kernel регистрирует после бутстрапперов.
     #
     'providers' => [
-        App\Providers\AppServiceProvider::class,
+        \Neo\Information\Lang\LangServiceProvider::class,
+        \Neo\Information\Persistence\Storage\Providers\StorageServiceProvider::class,
+        \App\Providers\AppServiceProvider::class,
     ],
 
     #

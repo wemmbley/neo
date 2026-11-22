@@ -16,6 +16,15 @@ return [
     #
     'tests' => [
         base_path('app/Tests'),
+
+        #
+        # Системные тесты ядра с пакетами.
+        # Можно выключить или удалить.
+        #
+        base_path('neo/Information/Lang/Tests'),
+        base_path('neo/Information/Transfer/Tests'),
+        base_path('neo/Information/Validator/Tests'),
+        base_path('neo/Information/Persistence/Storage/Tests'),
     ],
 
 ];

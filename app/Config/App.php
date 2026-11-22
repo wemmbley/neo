@@ -17,10 +17,13 @@ return [
     # Провайдеры, которые Kernel регистрирует после бутстрапперов.
     #
     'providers' => [
+        \Neo\Foundation\Kernel\Events\EventServiceProvider::class,
         \Neo\Information\Lang\LangServiceProvider::class,
         \Neo\Information\Persistence\Storage\Providers\StorageServiceProvider::class,
         \Neo\Information\Cache\Providers\CacheServiceProvider::class,
         \Neo\Information\Logger\Providers\LoggerServiceProvider::class,
+        \Neo\Information\Persistence\Database\DatabaseServiceProvider::class,
+        \Neo\Information\Persistence\ORM\ORMServiceProvider::class,
         \App\Providers\AppServiceProvider::class,
     ],
 

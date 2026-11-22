@@ -12,6 +12,7 @@
 - Конфигурации в массиве и хелпер `config()`/`env()`.
 - ServiceProvider, ServiceContainer, Facade.
 - Консоль приложения и отдельные команды `php cli`.
+- Observer, EventListener, EventDispatcher.
 
 ## 🩺🩸Diagnostic
 - Встроенный тестировщик `php cli test`.
@@ -19,12 +20,56 @@
 - Профилировщик с замерами `profiler()`.
 
 ## 💾📂Information
-- Файловые языки через функцию `__()`.
 - Файловое хранилище через фасад `Storage::`.
 - Реляционное хранилище, миграции, фабрики, сидеры.
 - Транспортировщик данных `Transfer`.
-- Валидация данных через фасад `Validator::`.
 - Специальный фасад для даты и времени `Chronos::`.
+- Логирование данных фасадом `Log::`
+- Универсальное сессионное хранилище: `Session::`
+- Обёртка над массивами фасадом `Collection::`
+
+## 🗺️🌐Network
+- Маршрутизатор HTTP-запросов `Route::`
+- Middleware, Request, Response, Controller.
+- UDP-клиент: Datagram Request-Response-Header.
+- HTTP-клиент для запросов на сторонние сервисы.
+- UDP-сервер: можно делать STUN/TURN и другое.
+- Автоматическая генерация API: `ResourceAPI`.
+- Автоматическая API-документация: `/docs/api`.
+- Сортировка, фильтрация, пагинация `ResourceAPI`.
+
+## 🔒🔑Security
+- Идентификация, аутентификация, авторизация.
+- Roles, Permissions, Guard, Policy, Gate.
+- CSRF-защита пользовательских форм.
+- XSS-защита, фасад `Crypt::`, CORS.
+
+## 🌆🌇Presentation
+- Универсальный шаблонизатор HTML `View::`.
+- Файловые языки через функцию `__()`.
+- Генерация писем и шаблонов фасадом `Mail::`
+- Валидация данных через фасад `Validator::`.
+
+## 🛡️🛠️Administration
+- Отдельная роль для администраторов.
+- Dashboard, Widget, DataTable.
+- Create, Read, Update, Delete, List.
+
+# Готовые системы
+
+## 📢📝CMS
+- Extends Administration functionality.
+- Pages, Taxonomies, Tags, Categories.
+- Menu, Comments, Posts, Templates.
+- Система полнотекствоого поиска.
+- Аналитика пользователей и ссылок.
+- SEO, meta-поля, URL-Permalinks.
+
+## 🛒🏷️eCommerce
+- Extends CMS functionality.
+- Products, Orders, Checkout, Stock.
+- Variants, Payments, Shipping, Cart.
+- Promotions, Coupons, Banners.
 
 ## Консоль
 <img src="./docs/Images/Console.png">

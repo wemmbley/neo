@@ -1,5 +1,6 @@
 <?php
 
+use Neo\Foundation\Kernel\Events\Dispatcher;
 use Neo\Foundation\Kernel\Kernel;
 
 /**
@@ -41,3 +42,12 @@ if (!function_exists('profiler')) {
         function_exists('dd') ? dd($stats) : var_dump($stats);
     }
 }
+
+if (!function_exists('event')) {
+    /** `event(new PriceChanged($p))`, `event('user.created', [$user])`. */
+    function event(string|object $event, mixed $payload = [], bool $halt = false): mixed
+    {
+        return kernel(Dispatcher::class)->dispatch($event, $payload, $halt);
+    }
+}
+

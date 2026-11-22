@@ -42,6 +42,7 @@ return [
             $base . '/neo/Diagnostic/Debug/helpers.php',
             $base . '/neo/Diagnostic/Testing/helpers.php',
             $base . '/neo/Information/Lang/helpers.php',
+            $base . '/neo/Information/Collection/helpers.php',
         ],
     ],
 ];

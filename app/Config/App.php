@@ -19,6 +19,7 @@ return [
     'providers' => [
         \Neo\Information\Lang\LangServiceProvider::class,
         \Neo\Information\Persistence\Storage\Providers\StorageServiceProvider::class,
+        \Neo\Information\Cache\Providers\CacheServiceProvider::class,
         \App\Providers\AppServiceProvider::class,
     ],
 

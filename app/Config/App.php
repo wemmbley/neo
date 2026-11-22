@@ -20,6 +20,7 @@ return [
         \Neo\Information\Lang\LangServiceProvider::class,
         \Neo\Information\Persistence\Storage\Providers\StorageServiceProvider::class,
         \Neo\Information\Cache\Providers\CacheServiceProvider::class,
+        \Neo\Information\Logger\Providers\LoggerServiceProvider::class,
         \App\Providers\AppServiceProvider::class,
     ],
 

@@ -23,7 +23,7 @@
 
 class CreatePostsTable extends Migration
 {
-    public function up()
+    public function table()
     {
         Schema::create('posts', function (Blueprint $table) {
             $table->id();
@@ -42,7 +42,7 @@ class CreatePostsTable extends Migration
 
 class CreatePostsTable extends Migration
 {
-    public function up()
+    public function table()
     {
         Schema::create('posts', function (Blueprint $table) {
             $table->id();

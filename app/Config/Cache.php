@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'default' => 'file',
+    'default' => env('CACHE_STORE', 'file'),
 
     'prefix'  => 'neo',
 

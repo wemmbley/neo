@@ -1,2 +1,6 @@
 .env
 .idea/*
+app/Storage/Logs/*
+app/Storage/Cache/*
+app/Storage/Sessions/*
+app/Storage/Private/cache

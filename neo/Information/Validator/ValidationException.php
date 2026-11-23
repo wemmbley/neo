@@ -4,20 +4,19 @@ declare(strict_types=1);
 
 namespace Neo\Information\Validator;
 
-/**
- * Данные не прошли проверку. Ядро отвечает на него статусом 422 и JSON
- * `{"message": "...", "errors": {"поле": ["сообщение", ...]}}`.
- *
- * Тот же массив ошибок можно передать в шаблон как `$errors`, и `@error('поле')` покажет сообщение.
- */
 final class ValidationException extends \RuntimeException
 {
     /**
      * @param array<string, list<string>> $errors
      */
-    public function __construct(private readonly array $errors, string $message = 'Данные не прошли проверку.')
-    {
-        parent::__construct($message, 422);
+    public function __construct(
+        private readonly array $errors,
+        string $message = 'Данные не прошли проверку.'
+    ) {
+        parent::__construct(
+            $message . PHP_EOL . PHP_EOL . $this->formatErrors($errors),
+            422
+        );
     }
 
     /**
@@ -28,23 +27,41 @@ final class ValidationException extends \RuntimeException
         return $this->errors;
     }
 
-    /**
-     * Первое сообщение поля или, если поле не указано, вообще первое сообщение.
-     */
     public function first(?string $field = null): ?string
     {
         $errors = $this->errors;
-        $messages = $field === null ? (reset($errors) ?: []) : ($errors[$field] ?? []);
+
+        $messages = $field === null
+            ? (reset($errors) ?: [])
+            : ($errors[$field] ?? []);
 
         return $messages[0] ?? null;
     }
 
     public function summary(): string
     {
-        $parts = [];
-        foreach ($this->errors as $field => $messages) {
-            $parts[] = $field . ': ' . implode(' ', $messages);
+        return $this->getMessage();
+    }
+
+    /**
+     * Формирует подробное сообщение для разработчика.
+     *
+     * @param array<string, list<string>> $errors
+     */
+    private function formatErrors(array $errors): string
+    {
+        $lines = [];
+
+        foreach ($errors as $field => $messages) {
+            $lines[] = sprintf('[%s]', $field);
+
+            foreach ($messages as $message) {
+                $lines[] = '  - ' . $message;
+            }
+
+            $lines[] = '';
         }
-        return $this->getMessage() . ' ' . implode('; ', $parts);
+
+        return implode(PHP_EOL, $lines);
     }
 }

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Neo\Information\Persistence\Database\Console;
 
-use Neo\Foundation\Console\Command;
+use Neo\Foundation\Console\Commands\Command;
 use Neo\Information\Persistence\Database\Migrations\Migrator;
 
 class MigrateCommand extends Command

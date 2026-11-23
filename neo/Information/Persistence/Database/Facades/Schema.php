@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace Neo\Information\Persistence\Database\Facades;
 
 use Closure;
-use Neo\Foundation\Kernel\Facades\FacadeOf;
+use Neo\Foundation\Kernel\Facade;
+use Neo\Foundation\Kernel\FacadeOf;
 use Neo\Information\Persistence\Database\Schema\SchemaBuilder;
 
 /**
@@ -23,4 +24,4 @@ use Neo\Information\Persistence\Database\Schema\SchemaBuilder;
  * @see SchemaBuilder
  */
 #[FacadeOf(SchemaBuilder::class)]
-final class Schema {}
+final class Schema extends Facade {}

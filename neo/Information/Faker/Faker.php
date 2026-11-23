@@ -69,9 +69,8 @@ class Faker
 
     private ?UniqueGenerator $unique = null;
 
-    public function __construct(string $locale = Locale::FALLBACK, ?int $seed = null)
+    public function __construct(?int $seed = null)
     {
-        $this->locale = new Locale($locale);
         $this->randomizer = new Randomizer($seed);
 
         foreach (self::PROVIDERS as $provider) {
@@ -124,18 +123,6 @@ class Faker
         return $this;
     }
 
-    public function setLocale(string $code): static
-    {
-        $this->locale->use($code);
-
-        return $this;
-    }
-
-    public function getLocale(): string
-    {
-        return $this->locale->code();
-    }
-
     /**
      * Values are never repeated for the same formatter; reset with unique(true).
      */
@@ -173,7 +160,9 @@ class Faker
     /** Locale data by dot-path (for providers and macros). */
     public function lang(string $key, mixed $default = null): mixed
     {
-        return $this->locale->get($key, $default);
+        $value = __('faker::faker.' . $key);
+
+        return $value === 'faker::faker.' . $key ? $default : $value;
     }
 
     public function __call(string $method, array $arguments): mixed

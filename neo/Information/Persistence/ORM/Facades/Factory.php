@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Neo\Information\Persistence\ORM\Facades;
 
-use Neo\Foundation\Kernel\Facades\FacadeOf;
+use Neo\Foundation\Kernel\Facade;
+use Neo\Foundation\Kernel\FacadeOf;
 use Neo\Information\Persistence\ORM\Factories\FactoryManager;
 
 /**
@@ -14,4 +15,4 @@ use Neo\Information\Persistence\ORM\Factories\FactoryManager;
  * @see FactoryManager
  */
 #[FacadeOf(FactoryManager::class)]
-final class Factory {}
+final class Factory extends Facade {}

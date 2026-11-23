@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace Neo\Foundation\Kernel\Facades;
 
 use Closure;
-use Neo\Foundation\Kernel\Events\Dispatcher;
+use Neo\Foundation\Kernel\Facade;
 use Neo\Foundation\Kernel\FacadeOf;
+use Neo\Foundation\Kernel\Events\Dispatcher;
 
 /**
  * @method static void listen(string|array|Closure $events, string|array|Closure|null $listener = null)
@@ -19,4 +20,4 @@ use Neo\Foundation\Kernel\FacadeOf;
  * @see Dispatcher
  */
 #[FacadeOf(Dispatcher::class)]
-final class Event {}
+final class Event extends Facade {}

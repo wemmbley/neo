@@ -22,6 +22,7 @@ return [
             'pcre',       # разбор Env и сигнатур команд
             'spl',        # spl_autoload_register
             'Reflection', # автосборка зависимостей контейнером
+            'openssl',    # crypt
         ],
     ],
 

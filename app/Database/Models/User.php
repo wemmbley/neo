@@ -2,10 +2,14 @@
 
 namespace App\Database\Models;
 
+use App\Database\Factories\UserFactory;
 use Neo\Information\Persistence\ORM\Attributes\Hidden;
 use Neo\Information\Persistence\ORM\Attributes\PrimaryKey;
+use Neo\Information\Persistence\ORM\Attributes\UseFactory;
+use Neo\Information\Persistence\ORM\Model;
 
-class User
+#[UseFactory(UserFactory::class)]
+class User extends Model
 {
     #[PrimaryKey]
     public int $id;

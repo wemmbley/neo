@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Neo\Information\Persistence\Database\Console;
 
-use Neo\Foundation\Console\Command;
+use Neo\Foundation\Console\Commands\Command;
 use Neo\Information\Persistence\Database\Seeding\Seeder;
 
 class DbSeedCommand extends Command
@@ -23,7 +23,7 @@ class DbSeedCommand extends Command
         }
 
         /** @var Seeder $seeder */
-        $seeder = app($class);
+        $seeder = kernel($class);
         $seeder->run();
 
         $this->info("Seeded: {$class}");

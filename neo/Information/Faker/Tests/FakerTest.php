@@ -6,7 +6,7 @@ use Neo\Information\Datetime\Chronos;
 use Neo\Information\Faker\Exceptions\FakerException;
 use Neo\Information\Faker\Exceptions\UniqueLimitException;
 use Neo\Information\Faker\Faker;
-use Neo\Security\Crypt;
+use Neo\Security\Crypt\CryptManager;
 
 /**
  * Runs the callback and returns the class of the thrown exception (or null).
@@ -294,7 +294,7 @@ test('hashedPassword is verifiable and hashed once per value', function () {
     $faker = new Faker('en', 81);
     $hash = $faker->hashedPassword();
 
-    expect(Crypt::verify('password', $hash))->toBeTrue();
+    expect(CryptManager::verify('password', $hash))->toBeTrue();
     expect($faker->hashedPassword())->toBe($hash);
     expect($faker->hashedPassword('secret') === $hash)->toBeFalse();
 });

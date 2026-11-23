@@ -6,6 +6,7 @@ namespace Neo\Information\Faker;
 
 use Closure;
 use DateTimeInterface;
+use Neo\Foundation\Kernel\Facade;
 use Neo\Foundation\Kernel\FacadeOf;
 use Neo\Information\Datetime\Chronos;
 use Neo\Information\Faker\Modifiers\OptionalGenerator;
@@ -136,4 +137,4 @@ use Neo\Information\Faker\Modifiers\ValidGenerator;
  * @see Faker
  */
 #[FacadeOf(Faker::class)]
-final class Fake {}
+final class Fake extends Facade {}

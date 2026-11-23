@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace Neo\Information\Persistence\Database\Facades;
 
 use Closure;
-use Neo\Foundation\Kernel\Facades\FacadeOf;
+use Neo\Foundation\Kernel\Facade;
+use Neo\Foundation\Kernel\FacadeOf;
 use Neo\Information\Persistence\Database\Connection;
 use Neo\Information\Persistence\Database\DatabaseManager;
 use Neo\Information\Persistence\Database\Query\Builder;
@@ -40,4 +41,4 @@ use Neo\Information\Persistence\Database\Schema\SchemaBuilder;
  * @see DatabaseManager
  */
 #[FacadeOf(DatabaseManager::class)]
-final class DB {}
+final class DB extends Facade {}

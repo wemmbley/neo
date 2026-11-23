@@ -22,6 +22,7 @@ use Neo\Information\Persistence\ORM\Factories\FactoryManager;
 use Neo\Information\Persistence\ORM\Metadata\ModelMetadata;
 use Neo\Information\Persistence\ORM\Relations\Relation;
 use Neo\Information\Persistence\ORM\Relations\RelationFactory;
+use Neo\Information\Validator\Validator;
 use Stringable;
 
 /**
@@ -63,6 +64,9 @@ use Stringable;
  */
 abstract class Model implements JsonSerializable, Stringable
 {
+    /** События жизненного цикла. Имя в диспетчере: `orm.created: App\\Models\\Product`. */
+    public const EVENTS = ['saving', 'saved', 'creating', 'created', 'updating', 'updated', 'deleting', 'deleted'];
+
     protected ?string $table = null;
     protected ?string $connection = null;
     protected string $primaryKey = 'id';
@@ -95,7 +99,10 @@ abstract class Model implements JsonSerializable, Stringable
 
     private static ?DatabaseManager $resolver = null;
     private static ?Dispatcher $events = null;
-    private static string $collectionClass = 'App\\Information\\Collection';
+    private static string $collectionClass = 'Neo\\Information\\Collection\\Collection';
+
+    /** @var array<class-string, true> классы, чьи наблюдатели из #[ObservedBy] уже подключены */
+    private static array $booted = [];
     private static bool $preventLazyLoading = false;
     private static ?Closure $lazyLoadingHandler = null;
 
@@ -113,6 +120,51 @@ abstract class Model implements JsonSerializable, Stringable
     public static function setEventDispatcher(?Dispatcher $events): void
     {
         self::$events = $events;
+        self::$booted = [];
+    }
+
+    /**
+     * Подписаться на событие модели: `Product::listen('created', fn (Product $p) => ...)`.
+     * "-ing" события можно отменить, вернув false.
+     */
+    public static function listen(string $event, \Closure|array|string $listener): void
+    {
+        (self::$events ?? throw new LogicException('EventDispatcher не подключён (ORMServiceProvider).'))
+            ->listen('orm.' . $event . ': ' . static::class, $listener);
+    }
+
+    /** Подключить наблюдателя: методы с именами событий получают модель. */
+    public static function observe(string $observer): void
+    {
+        foreach (self::EVENTS as $event) {
+            if (method_exists($observer, $event)) {
+                static::listen($event, [$observer, $event]);
+            }
+        }
+    }
+
+    private static function bootObservers(): void
+    {
+        if (self::$events === null || isset(self::$booted[static::class])) {
+            return;
+        }
+
+        self::$booted[static::class] = true;
+
+        foreach (static::metadata()->observers as $observer) {
+            static::observe($observer);
+        }
+    }
+
+    private function fireModelEvent(string $event, bool $halt = false): mixed
+    {
+        if (self::$events === null) {
+            return null;
+        }
+
+        $name = 'orm.' . $event . ': ' . static::class;
+
+        return $halt ? self::$events->until($name, [$this]) : self::$events->dispatch($name, [$this]);
     }
 
     /** Класс коллекции для результатов: должен иметь статический make(array). */
@@ -159,6 +211,8 @@ abstract class Model implements JsonSerializable, Stringable
 
     public function __construct(array $attributes = [])
     {
+        static::bootObservers();
+
         $vars = get_object_vars($this);
 
         foreach (static::metadata()->fields as $prop => $field) {
@@ -392,11 +446,23 @@ abstract class Model implements JsonSerializable, Stringable
 
     public function save(): bool
     {
-        return $this->exists ? $this->performUpdate() : $this->performInsert();
+        if ($this->fireModelEvent('saving', true) === false) {
+            return false;
+        }
+
+        $saved = $this->exists ? $this->performUpdate() : $this->performInsert();
+
+        $saved && $this->fireModelEvent('saved');
+
+        return $saved;
     }
 
     private function performInsert(): bool
     {
+        if ($this->fireModelEvent('creating', true) === false) {
+            return false;
+        }
+
         $meta = static::metadata();
         $this->touchTimestamps(creating: true);
 
@@ -417,39 +483,51 @@ abstract class Model implements JsonSerializable, Stringable
 
         $this->exists = true;
         $this->syncOriginal();
+        $this->fireModelEvent('created');
 
         return true;
     }
 
     private function performUpdate(): bool
     {
-        $meta = static::metadata();
-        $dirty = $this->getDirty();
-
-        if ($dirty === []) {
+        if ($this->getDirty() === []) {
             return true;
         }
 
+        $this->assertMutable($this->getDirty());
+
+        if ($this->fireModelEvent('updating', true) === false) {
+            return false;
+        }
+
+        # Слушатель мог изменить модель.
+        $this->assertMutable($this->getDirty());
+        $this->touchTimestamps(creating: false);
+
+        $dirty = $this->getDirty();
+        $old = $this->original;
+
+        $this->getConnection()->table($this->getTable())
+            ->where(static::metadata()->primaryColumn, '=', $this->getKey())
+            ->update($dirty);
+
+        $this->syncOriginal();
+        $this->fireModelEvent('updated');
+        $this->dispatchWatchers($dirty, $old);
+
+        return true;
+    }
+
+    /** @param array<string, mixed> $dirty */
+    private function assertMutable(array $dirty): void
+    {
         foreach ($dirty as $column => $_) {
-            $field = $meta->fieldByColumn($column);
+            $field = static::metadata()->fieldByColumn($column);
 
             if ($field !== null && $field->immutable) {
                 throw new ImmutableAttributeException(static::class, $field->property);
             }
         }
-
-        $this->touchTimestamps(creating: false);
-        $dirty = $this->getDirty();
-        $old = $this->original;
-
-        $this->getConnection()->table($this->getTable())
-            ->where($meta->primaryColumn, '=', $this->getKey())
-            ->update($dirty);
-
-        $this->syncOriginal();
-        $this->dispatchWatchers($dirty, $old);
-
-        return true;
     }
 
     /** @param array<string, mixed> $dirty @param array<string, mixed> $old */
@@ -500,11 +578,16 @@ abstract class Model implements JsonSerializable, Stringable
             return false;
         }
 
+        if ($this->fireModelEvent('deleting', true) === false) {
+            return false;
+        }
+
         $this->getConnection()->table($this->getTable())
             ->where($this->getKeyName(), '=', $this->getKey())
             ->delete();
 
         $this->exists = false;
+        $this->fireModelEvent('deleted');
 
         return true;
     }
@@ -521,6 +604,22 @@ abstract class Model implements JsonSerializable, Stringable
     public function fresh(): ?static
     {
         return static::find($this->getKey());
+    }
+
+    /** Запрос без eager-загрузок (его использует Collection::load()). */
+    public function newQueryWithoutRelationships(): Builder
+    {
+        return static::query()->withoutEagerLoads();
+    }
+
+    public function newQueryWithoutScopes(): Builder
+    {
+        return static::query();
+    }
+
+    public function newModelQuery(): Builder
+    {
+        return static::query()->withoutEagerLoads();
     }
 
     # ------------------------------------------------------- static shortcuts
@@ -582,6 +681,30 @@ abstract class Model implements JsonSerializable, Stringable
     public static function validationMessages(): array
     {
         return array_map(static fn ($f) => $f->messages, static::metadata()->fields);
+    }
+
+    /** Валидатор на правилах и сообщениях из #[Rules] / #[Config]. Данные ключуются именами свойств. */
+    public static function validator(array $data): Validator
+    {
+        $messages = [];
+
+        foreach (static::validationMessages() as $property => $byRule) {
+            foreach ($byRule as $rule => $text) {
+                $messages[$property . '.' . $rule] = $text;
+            }
+        }
+
+        return Validator::make($data, array_filter(static::validationRules()), $messages);
+    }
+
+    /**
+     * Проверить данные и вернуть только поля с правилами.
+     *
+     * @throws \Neo\Information\Validator\ValidationException
+     */
+    public static function validate(array $data): array
+    {
+        return static::validator($data)->validate();
     }
 
     /** @return array<string, class-string> свойство => событие */

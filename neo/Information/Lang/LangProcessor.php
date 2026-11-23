@@ -139,7 +139,10 @@ final class LangProcessor
         }
 
         return $this->locales[$namespace]
-            ??= array_map('basename', glob($this->namespaces[$namespace] . '/*', GLOB_ONLYDIR) ?: []);
+            ??= array_map(
+            fn (string $dir) => strtolower(basename($dir)),
+            glob($this->namespaces[$namespace] . '/*', GLOB_ONLYDIR) ?: []
+        );
     }
 
     /**
@@ -176,7 +179,9 @@ final class LangProcessor
         $safe = preg_match('/^[\w-]+$/', $locale) && preg_match('/^[\w-]+$/', $file);
 
         if ($safe && isset($this->namespaces[$namespace])) {
-            $path = "{$this->namespaces[$namespace]}/{$locale}/{$file}.php";
+            $dir  = ucfirst(strtolower($locale));
+            $name = ucfirst($file);
+            $path = "{$this->namespaces[$namespace]}/{$dir}/{$name}.php";
 
             if (is_file($path)) {
                 $data = require $path;

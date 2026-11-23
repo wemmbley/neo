@@ -18,8 +18,8 @@ use Neo\Information\Persistence\ORM\Exceptions\ModelNotFoundException;
 class Builder
 {
     /** Классы пагинаторов (Laravel-совместимые конструкторы). Менять через usePaginators(). */
-    private static string $lengthAwarePaginator = 'App\\Information\\LengthAwarePaginator';
-    private static string $simplePaginator = 'App\\Information\\Paginator';
+    private static string $lengthAwarePaginator = 'Neo\\Information\\Collection\\LengthAwarePaginator';
+    private static string $simplePaginator = 'Neo\\Information\\Collection\\Paginator';
 
     /** @var array<int|string, string|Closure|null> */
     private array $eagerLoad;
@@ -57,6 +57,35 @@ class Builder
         $this->eagerLoad = [...$this->eagerLoad, ...EagerLoader::normalize($relations)];
 
         return $this;
+    }
+
+    /** Сбросить все eager-загрузки, включая Model::$with. */
+    public function withoutEagerLoads(): static
+    {
+        $this->eagerLoad = [];
+
+        return $this;
+    }
+
+    /**
+     * Догрузить отношения для уже готовых моделей (вызывается из Collection::load()).
+     *
+     * @param  list<Model> $models
+     * @return list<Model>
+     */
+    public function eagerLoadRelations(array $models): array
+    {
+        EagerLoader::load($models, $this->eagerLoad);
+
+        return $models;
+    }
+
+    /** Условие по первичному ключу: один ключ или список. */
+    public function whereKey(mixed $id): static
+    {
+        $column = $this->model->getQualifiedKeyName();
+
+        return is_array($id) ? $this->whereIn($column, $id) : $this->where($column, '=', $id);
     }
 
     public function without(string ...$relations): static

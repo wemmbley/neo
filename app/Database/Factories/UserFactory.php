@@ -1,5 +1,7 @@
 <?php
 
+namespace App\Database\Factories;
+
 use App\Database\Models\User;
 use Neo\Information\Datetime\Chronos;
 use Neo\Information\Faker\Fake;
@@ -18,7 +20,6 @@ class UserFactory extends Factory
     public function definition(): array
     {
         return [
-            'name' => Fake::name(),
             'email' => Fake::unique()->safeEmail(),
             'email_verified_at' => Chronos::now(),
             'password' => Fake::hashedPassword(),

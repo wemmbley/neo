@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace Neo\Information\Faker\Providers;
 
 use Neo\Information\Faker\Provider;
-use Neo\Security\Crypt;
+use Neo\Security\Crypt\Crypt;
+use Neo\Security\Crypt\CryptManager;
 
 /**
  * Values for user and token tables.

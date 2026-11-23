@@ -15,6 +15,8 @@ class EventServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->loadConfig(base_path('app/Config/Events.php'), 'events');
+
         $this->app->singleton(
             Dispatcher::class,
             fn () => new Dispatcher(fn (string $class) => $this->app->make($class)),

@@ -13,6 +13,7 @@ use Neo\Information\Persistence\ORM\Attributes\DB;
 use Neo\Information\Persistence\ORM\Attributes\Fillable;
 use Neo\Information\Persistence\ORM\Attributes\Hidden;
 use Neo\Information\Persistence\ORM\Attributes\Immutable;
+use Neo\Information\Persistence\ORM\Attributes\ObservedBy;
 use Neo\Information\Persistence\ORM\Attributes\PrimaryKey;
 use Neo\Information\Persistence\ORM\Attributes\Relations\RelationAttribute;
 use Neo\Information\Persistence\ORM\Attributes\Rules;
@@ -47,6 +48,9 @@ final class ModelMetadata
 
     /** @var array<string, string> колонка => свойство */
     public array $columns = [];
+
+    /** @var list<class-string> наблюдатели из #[ObservedBy] */
+    public array $observers = [];
 
     /** @var array<string, RelationAttribute> имя => отношение */
     public array $relations = [];
@@ -109,6 +113,10 @@ final class ModelMetadata
         }
 
         $this->primaryColumn = isset($this->fields[$pk]) ? $this->fields[$pk]->column : $pk;
+
+        foreach ($ref->getAttributes(ObservedBy::class) as $a) {
+            array_push($this->observers, ...(array) $a->newInstance()->observers);
+        }
 
         foreach ($ref->getAttributes(RelationAttribute::class, ReflectionAttribute::IS_INSTANCEOF) as $a) {
             $rel = $a->newInstance();

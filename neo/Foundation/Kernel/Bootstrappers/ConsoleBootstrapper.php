@@ -11,6 +11,7 @@ use Neo\Foundation\Console\Commands\HelpCommand;
 use Neo\Foundation\Console\Output;
 use Neo\Foundation\Kernel\BootstrapperContract;
 use Neo\Foundation\Kernel\Commands\ConfigShowCommand;
+use Neo\Foundation\Kernel\Commands\EnvSetCommand;
 use Neo\Foundation\Kernel\Commands\ProvidersCommand;
 use Neo\Foundation\Kernel\Kernel;
 use Neo\Foundation\Kernel\ServiceContainer;
@@ -28,7 +29,7 @@ final class ConsoleBootstrapper implements BootstrapperContract
     private const array BUILT_IN = [
         HelpCommand::class,
         ConfigShowCommand::class,
-//        EnvSetCommand::class,
+        EnvSetCommand::class,
         ProvidersCommand::class,
         RunTestsCommand::class,
     ];

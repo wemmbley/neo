@@ -44,7 +44,7 @@ final class Validator
      * Префикс ключей сообщений в языковом процессоре: `{LANG}.required`, `{LANG}.min.numeric` и т.д.
      * Запасной текст для правил без сообщения лежит по ключу `{LANG}.invalid`.
      */
-    private const LANG = 'validation::validation';
+    private const LANG = 'validator::validator';
 
     /** Правила, которые выполняются, даже если поля нет или оно пустое. */
     private const IMPLICIT = ['required', 'present', 'filled', 'accepted'];

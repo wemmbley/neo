@@ -10,9 +10,12 @@ use Neo\Information\Persistence\Database\Console\MakeMigrationCommand;
 use Neo\Information\Persistence\Database\Console\MakeSeederCommand;
 use Neo\Information\Persistence\Database\Console\MigrateCommand;
 use Neo\Information\Persistence\Database\Console\MigrateFreshCommand;
+use Neo\Information\Persistence\Database\Console\MigrateLogCommand;
+use Neo\Information\Persistence\Database\Console\MigratePurgeCommand;
 use Neo\Information\Persistence\Database\Console\MigrateRollbackCommand;
 use Neo\Information\Persistence\Database\Console\MigrateStatusCommand;
 use Neo\Information\Persistence\Database\Migrations\Migrator;
+use Neo\Information\Persistence\Database\Schema\Declarative\SchemaMigrator;
 use Neo\Information\Persistence\Database\Schema\SchemaBuilder;
 
 /**
@@ -45,10 +48,14 @@ class DatabaseServiceProvider extends ServiceProvider
             );
         });
 
+        $this->app->singleton(SchemaMigrator::class, fn () => new SchemaMigrator($this->app->make(Migrator::class)));
+
         $this->commands([
             MigrateCommand::class,
             MigrateRollbackCommand::class,
             MigrateStatusCommand::class,
+            MigrateLogCommand::class,
+            MigratePurgeCommand::class,
             MigrateFreshCommand::class,
             DbSeedCommand::class,
             MakeMigrationCommand::class,

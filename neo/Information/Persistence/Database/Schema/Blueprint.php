@@ -20,11 +20,24 @@ class Blueprint
 
     public bool $creating = false;
 
+    /** Schema::extend(): расширение чужой таблицы, первичный ключ объявлять нельзя. */
+    public bool $extending = false;
+
+    /** Декларативный режим (Migration::table()): колонки не удаляют командами, их убирают из файла. */
+    public bool $declarative = false;
+
     public function __construct(public readonly string $table) {}
 
     private function add(string $type, string $name, array $params = []): ColumnDefinition
     {
         return $this->columns[] = new ColumnDefinition($type, $name, $params);
+    }
+
+    private function assertOwnsKey(string $what): void
+    {
+        if ($this->extending) {
+            throw new \LogicException("В Schema::extend('{$this->table}') нельзя объявлять {$what}: первичный ключ принадлежит модулю, создавшему таблицу.");
+        }
     }
 
     public function id(string $name = 'id'): ColumnDefinition
@@ -34,6 +47,7 @@ class Blueprint
 
     public function increments(string $name): ColumnDefinition
     {
+        $this->assertOwnsKey('автоинкрементную колонку');
         $c = $this->add('integer', $name);
         $c->autoIncrement = true;
         $c->primary = true;
@@ -44,6 +58,7 @@ class Blueprint
 
     public function bigIncrements(string $name): ColumnDefinition
     {
+        $this->assertOwnsKey('автоинкрементную колонку');
         $c = $this->add('bigInteger', $name);
         $c->autoIncrement = true;
         $c->primary = true;
@@ -148,11 +163,16 @@ class Blueprint
 
     public function primary(string|array $columns): void
     {
+        $this->assertOwnsKey('первичный ключ');
         $this->indexes[] = ['type' => 'primary', 'columns' => (array) $columns, 'name' => null];
     }
 
     public function dropColumn(string ...$columns): void
     {
+        if ($this->declarative) {
+            throw new \LogicException('В table() колонку не удаляют командой: уберите её из декларации, Neo покажет удаление и спросит подтверждение.');
+        }
+
         array_push($this->dropColumns, ...$columns);
     }
 }

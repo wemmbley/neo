@@ -6,7 +6,7 @@ use Neo\Information\Persistence\Database\Schema\Blueprint;
 
 return new class extends Migration
 {
-    public function up(): void
+    public function table(): void
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
@@ -16,10 +16,5 @@ return new class extends Migration
             $table->string('remember_token', 100)->nullable();
             $table->timestamps();
         });
-    }
-
-    public function down(): void
-    {
-        Schema::dropIfExists('users');
     }
 };

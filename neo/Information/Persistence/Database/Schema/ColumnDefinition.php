@@ -23,6 +23,10 @@ class ColumnDefinition
     public ?string $on = null;
     public ?string $onDelete = null;
     public ?string $onUpdate = null;
+    public ?string $fkName = null;
+
+    /** Подсказка декларативному потоку: колонка раньше называлась так. */
+    public ?string $renamedFrom = null;
 
     public function __construct(
         public readonly string $type,
@@ -76,6 +80,13 @@ class ColumnDefinition
     public function index(): static
     {
         $this->index = true;
+
+        return $this;
+    }
+
+    public function renamedFrom(string $oldName): static
+    {
+        $this->renamedFrom = $oldName;
 
         return $this;
     }

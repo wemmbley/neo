@@ -5,16 +5,27 @@ declare(strict_types=1);
 namespace Neo\Information\Persistence\Database\Migrations;
 
 use Closure;
+use Neo\Information\Persistence\Database\Connection;
 use Neo\Information\Persistence\Database\DatabaseManager;
 use Neo\Information\Persistence\Database\Exceptions\DatabaseException;
+use Neo\Information\Persistence\Database\Exceptions\DoubleStrategyException;
+use Neo\Information\Persistence\Database\Exceptions\MigrationStrategyException;
+use ReflectionMethod;
 
 /**
- * Находит файлы миграций и выполняет up/down батчами.
+ * Находит файлы миграций. Legacy (up/down) выполняет батчами;
+ * декларативные (table) отдаёт {@see \Neo\Information\Persistence\Database\Schema\Declarative\SchemaMigrator}.
  */
 class Migrator
 {
-    /** @var list<string> */
-    private array $paths;
+    public const LEGACY = 'legacy';
+    public const DECLARATIVE = 'declarative';
+
+    /** @var list<array{path: string, owner: string}> */
+    private array $paths = [];
+
+    /** @var array<string, Migration> */
+    private array $resolved = [];
 
     /** @param list<string> $paths */
     public function __construct(
@@ -22,33 +33,76 @@ class Migrator
         private readonly array $config,
         array $paths = [],
     ) {
-        $this->paths = $paths;
+        foreach ($paths as $path) {
+            $this->addPath($path);
+        }
     }
 
-    public function addPath(string $path): void
+    /** @param string $owner владелец путей: класс провайдера модуля, 'app' для приложения */
+    public function addPath(string $path, string $owner = 'app'): void
     {
-        $this->paths[] = $path;
+        $this->paths[] = ['path' => $path, 'owner' => $owner];
+    }
+
+    public function config(string $key, mixed $default = null): mixed
+    {
+        return $this->config[$key] ?? $default;
+    }
+
+    public function connection(): Connection
+    {
+        return $this->db->connection($this->config['connection'] ?? null);
     }
 
     private function repository(): MigrationRepository
     {
-        $name = $this->config['connection'] ?? null;
-
-        return new MigrationRepository($this->db->connection($name), $this->config['table'] ?? 'migrations');
+        return new MigrationRepository($this->connection(), $this->config['table'] ?? 'migrations');
     }
 
-    /** @return array<string, string> имя => путь, по возрастанию имени */
+    /**
+     * Все файлы с определённой стратегией, по возрастанию имени.
+     *
+     * @return list<array{owner: string, name: string, file: string, strategy: string, migration: Migration}>
+     */
+    public function entries(): array
+    {
+        $entries = [];
+
+        foreach ($this->paths as ['path' => $dir, 'owner' => $owner]) {
+            foreach (glob(rtrim($dir, '/\\') . '/*.php') ?: [] as $file) {
+                $migration = $this->resolve($file);
+
+                $entries[] = [
+                    'owner' => $owner,
+                    'name' => basename($file, '.php'),
+                    'file' => $file,
+                    'strategy' => $this->strategy($migration, $file),
+                    'migration' => $migration,
+                ];
+            }
+        }
+
+        usort($entries, static fn (array $a, array $b) => [$a['name'], $a['owner']] <=> [$b['name'], $b['owner']]);
+
+        return $entries;
+    }
+
+    /** @return list<array{owner: string, name: string, file: string, strategy: string, migration: Migration}> */
+    public function declarative(): array
+    {
+        return array_values(array_filter($this->entries(), static fn (array $e) => $e['strategy'] === self::DECLARATIVE));
+    }
+
+    /** @return array<string, string> имя => путь legacy-миграций */
     public function files(): array
     {
         $files = [];
 
-        foreach ($this->paths as $dir) {
-            foreach (glob(rtrim($dir, '/\\') . '/*.php') ?: [] as $file) {
-                $files[basename($file, '.php')] = $file;
+        foreach ($this->entries() as $e) {
+            if ($e['strategy'] === self::LEGACY) {
+                $files[$e['name']] = $e['file'];
             }
         }
-
-        ksort($files);
 
         return $files;
     }
@@ -56,10 +110,11 @@ class Migrator
     /** @return list<string> выполненные имена */
     public function run(?Closure $onMigrated = null): array
     {
+        $files = $this->files();
         $repo = $this->repository();
         $repo->ensureTable();
 
-        $pending = array_diff_key($this->files(), array_flip($repo->ran()));
+        $pending = array_diff_key($files, array_flip($repo->ran()));
         $batch = $repo->nextBatch();
         $done = [];
 
@@ -71,6 +126,18 @@ class Migrator
         }
 
         return $done;
+    }
+
+    /** @return list<string> имена legacy-миграций, которые ещё не выполнены */
+    public function pending(): array
+    {
+        $files = $this->files();
+        $repo = $this->repository();
+        $ran = $this->db->connection($this->config['connection'] ?? null)->schema()->hasTable($this->config['table'] ?? 'migrations')
+            ? $repo->ran()
+            : [];
+
+        return array_keys(array_diff_key($files, array_flip($ran)));
     }
 
     /** @return list<string> */
@@ -97,7 +164,7 @@ class Migrator
         return $done;
     }
 
-    /** @return list<array{name: string, ran: bool}> */
+    /** @return list<array{name: string, ran: bool}> только legacy */
     public function status(): array
     {
         $repo = $this->repository();
@@ -110,14 +177,35 @@ class Migrator
         );
     }
 
-    private function resolve(string $file): Migration
+    /** Файл выполняется один раз за процесс: повторный require анонимного класса был бы лишней работой. */
+    public function resolve(string $file): Migration
     {
+        if (isset($this->resolved[$file])) {
+            return $this->resolved[$file];
+        }
+
         $migration = require $file;
 
         if (!$migration instanceof Migration) {
             throw new DatabaseException("Файл {$file} должен возвращать экземпляр " . Migration::class . '.');
         }
 
-        return $migration;
+        return $this->resolved[$file] = $migration;
+    }
+
+    private function strategy(Migration $migration, string $file): string
+    {
+        $overrides = static fn (string $method): bool
+            => (new ReflectionMethod($migration, $method))->getDeclaringClass()->getName() !== Migration::class;
+
+        $legacy = $overrides('up');
+        $declarative = $overrides('table');
+
+        return match (true) {
+            $legacy && $declarative => throw new DoubleStrategyException($file),
+            $legacy => self::LEGACY,
+            $declarative => self::DECLARATIVE,
+            default => throw new MigrationStrategyException($file),
+        };
     }
 }

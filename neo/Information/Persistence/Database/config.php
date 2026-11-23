@@ -40,6 +40,9 @@ return [
 
     'migrations' => [
         'table' => 'migrations',
+
+        # История декларативных миграций (migrate:log, migrate:rollback --to).
+        'commits_table' => 'migrations_commits',
         'connection' => env('DB_MIGRATION_CONNECTION'),
         'paths' => [base_path('app/Database/Migrations')],
     ],

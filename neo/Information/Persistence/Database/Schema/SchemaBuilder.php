@@ -6,6 +6,7 @@ namespace Neo\Information\Persistence\Database\Schema;
 
 use Closure;
 use Neo\Information\Persistence\Database\Connection;
+use Neo\Information\Persistence\Database\Schema\Declarative\Recorder;
 
 /**
  * `Schema::create('products', fn (Blueprint $t) => ...)`
@@ -24,13 +25,48 @@ class SchemaBuilder
         $table = $this->connection->withPrefix($table);
         $bp = new Blueprint($table);
         $bp->creating = true;
+        $bp->declarative = Recorder::active();
         $callback($bp);
+
+        if (Recorder::active()) {
+            Recorder::add('create', $bp);
+
+            return;
+        }
 
         $this->run($this->schemaGrammar->create($bp, $table));
     }
 
+    /**
+     * Расширение таблицы другого модуля. Работает только внутри Migration::table():
+     * `Schema::extend('users', fn (Blueprint $t) => $t->string('telegram_id')->nullable())`.
+     */
+    public function extend(string $table, Closure $callback): void
+    {
+        if (!Recorder::active()) {
+            throw new \LogicException('Schema::extend() доступен только внутри Migration::table().');
+        }
+
+        $table = $this->connection->withPrefix($table);
+        $bp = new Blueprint($table);
+        $bp->extending = true;
+        $bp->declarative = true;
+        $callback($bp);
+
+        Recorder::add('extend', $bp);
+    }
+
+    /** Внутри table() схему не меняют напрямую: только объявляют. */
+    private function forbidWhileRecording(string $method): void
+    {
+        if (Recorder::active()) {
+            throw new \LogicException("Schema::{$method}() нельзя вызывать внутри Migration::table(): там схему объявляют (create/extend), а не меняют.");
+        }
+    }
+
     public function table(string $table, Closure $callback): void
     {
+        $this->forbidWhileRecording('table');
         $table = $this->connection->withPrefix($table);
         $bp = new Blueprint($table);
         $callback($bp);
@@ -40,16 +76,19 @@ class SchemaBuilder
 
     public function drop(string $table): void
     {
+        $this->forbidWhileRecording('drop');
         $this->run([$this->schemaGrammar->drop($this->connection->withPrefix($table))]);
     }
 
     public function dropIfExists(string $table): void
     {
+        $this->forbidWhileRecording('dropIfExists');
         $this->run([$this->schemaGrammar->dropIfExists($this->connection->withPrefix($table))]);
     }
 
     public function rename(string $from, string $to): void
     {
+        $this->forbidWhileRecording('rename');
         $this->run([$this->schemaGrammar->rename(
             $this->connection->withPrefix($from),
             $this->connection->withPrefix($to),

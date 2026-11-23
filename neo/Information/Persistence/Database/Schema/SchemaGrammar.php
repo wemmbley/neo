@@ -23,15 +23,27 @@ final class SchemaGrammar
     {
         $defs = array_map(fn (ColumnDefinition $c) => $this->column($c), $bp->columns);
 
+        $hasPrimary = false;
         foreach ($bp->indexes as $idx) {
             if ($idx['type'] === 'primary') {
                 $defs[] = 'primary key (' . $this->cols($idx['columns']) . ')';
+                $hasPrimary = true;
             }
+        }
+
+        # ->primary() на колонке без автоинкремента.
+        $flagged = array_values(array_map(
+            static fn (ColumnDefinition $c) => $c->name,
+            array_filter($bp->columns, static fn (ColumnDefinition $c) => $c->primary && !$c->autoIncrement),
+        ));
+        if (!$hasPrimary && $flagged !== []) {
+            $defs[] = 'primary key (' . $this->cols($flagged) . ')';
         }
 
         foreach ($bp->columns as $c) {
             if ($c->on !== null) {
-                $fk = 'foreign key (' . $this->grammar->wrap($c->name) . ') references '
+                $fk = 'constraint ' . $this->grammar->wrap($c->fkName ?? $table . '_' . $c->name . '_foreign')
+                    . ' foreign key (' . $this->grammar->wrap($c->name) . ') references '
                     . $this->grammar->wrap($c->on) . ' (' . $this->grammar->wrap((string) $c->references) . ')';
                 $fk .= $c->onDelete ? ' on delete ' . $c->onDelete : '';
                 $fk .= $c->onUpdate ? ' on update ' . $c->onUpdate : '';
@@ -58,6 +70,19 @@ final class SchemaGrammar
         }
 
         return [...$out, ...$this->indexStatements($bp, $table)];
+    }
+
+    public function foreignKeySql(string $table, string $name, array $fk): string
+    {
+        $sql = 'constraint ' . $this->grammar->wrap($name) . ' foreign key (' . $this->grammar->wrap($fk['column']) . ') references '
+            . $this->grammar->wrap($fk['on']) . ' (' . $this->grammar->wrap($fk['references']) . ')';
+
+        return $sql . (!empty($fk['onDelete']) ? ' on delete ' . $fk['onDelete'] : '') . (!empty($fk['onUpdate']) ? ' on update ' . $fk['onUpdate'] : '');
+    }
+
+    public function indexCreateSql(string $table, string $name, string $type, array $columns): string
+    {
+        return $this->indexSql($type, $table, $columns, $name);
     }
 
     public function drop(string $table): string
@@ -110,13 +135,28 @@ final class SchemaGrammar
         return implode(', ', array_map($this->grammar->wrap(...), $columns));
     }
 
-    private function column(ColumnDefinition $c): string
+    /** Тип колонки в SQL, включая `unsigned` для MySQL. */
+    public function sqlType(ColumnDefinition $c): string
     {
-        $sql = $this->grammar->wrap($c->name) . ' ' . $this->type($c);
+        $type = $this->type($c);
 
         if ($this->mysql() && $c->unsigned && in_array($c->type, ['integer', 'bigInteger', 'float', 'decimal'], true)) {
-            $sql .= ' unsigned';
+            $type .= ' unsigned';
         }
+
+        return $type;
+    }
+
+    /** Значение по умолчанию как SQL-текст или null, если не задано. */
+    public function defaultSql(ColumnDefinition $c): ?string
+    {
+        return $c->useCurrent ? 'current_timestamp' : ($c->hasDefault ? $this->defaultValue($c->default) : null);
+    }
+
+    /** Определение колонки. $withPrimary = false нужен для MySQL MODIFY: ключ уже существует. */
+    public function column(ColumnDefinition $c, bool $withPrimary = true): string
+    {
+        $sql = $this->grammar->wrap($c->name) . ' ' . $this->sqlType($c);
 
         $sql .= $c->nullable ? ' null' : ' not null';
 
@@ -127,7 +167,7 @@ final class SchemaGrammar
         }
 
         if ($c->autoIncrement) {
-            $sql .= $this->mysql() ? ' auto_increment primary key' : ' primary key autoincrement';
+            $sql .= $this->mysql() ? ($withPrimary ? ' auto_increment primary key' : ' auto_increment') : ' primary key autoincrement';
         }
 
         if ($this->mysql() && $c->comment !== null) {

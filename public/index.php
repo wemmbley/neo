@@ -24,5 +24,3 @@ require_once $root . DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR . 'Bootst
 #
 $bootstrap = new Bootstrap($config);
 $bootstrap->run();
-
-echo \Neo\Presentation\View\View::render('home');

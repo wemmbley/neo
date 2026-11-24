@@ -22,6 +22,18 @@ class ServiceContainer
      */
     private array $deferred = [];
 
+    /**
+     * Привязки «на запрос»: один экземпляр на scope (HTTP-запрос / корутину).
+     *
+     * @var array<string, true>
+     */
+    private array $scoped = [];
+
+    /** Запасное хранилище scoped-сервисов вне запроса (консоль, boot). */
+    private array $scopedFallback = [];
+
+    private ?ScopeContract $scope = null;
+
     private DependencyResolverContract $resolver;
 
     public function __construct(
@@ -71,8 +83,42 @@ class ServiceContainer
         return $this->bind($abstract, $concrete, true);
     }
 
+    /**
+     * Как singleton(), но экземпляр живёт только в текущем scope (запросе).
+     * Нужен для долгоживущих воркеров (Swoole): общий на процесс singleton
+     * с состоянием запроса был бы общим для всех одновременных запросов.
+     *
+     * Вне активного scope (консоль, boot) ведёт себя как singleton.
+     */
+    public function scoped(
+        string              $abstract,
+        Closure|string|null $concrete = null,
+    ): static
+    {
+        $this->bind($abstract, $concrete, false);
+        $this->scoped[$abstract] = true;
+        unset($this->scopedFallback[$abstract]);
+
+        return $this;
+    }
+
+    /** Подключает хранилище текущего scope (HTTP-контекст запроса). */
+    public function useScope(?ScopeContract $scope): static
+    {
+        $this->scope = $scope;
+
+        return $this;
+    }
+
+    public function isScoped(string $abstract): bool
+    {
+        return isset($this->scoped[$abstract]);
+    }
+
     public function instance(string $abstract, mixed $instance): mixed
     {
+        unset($this->scoped[$abstract]);
+
         unset($this->bindings[$abstract], $this->deferred[$abstract]);
 
         return $this->instances[$abstract] = $instance;
@@ -84,6 +130,8 @@ class ServiceContainer
             $this->bindings[$abstract],
             $this->instances[$abstract],
             $this->deferred[$abstract],
+            $this->scoped[$abstract],
+            $this->scopedFallback[$abstract],
         );
     }
 
@@ -136,6 +184,10 @@ class ServiceContainer
             ($this->deferred[$abstract])();
         }
 
+        if (isset($this->scoped[$abstract])) {
+            return $this->makeScoped($abstract, $parameters);
+        }
+
         if ($this->hasInstance($abstract)) {
             return $this->getInstance($abstract);
         }
@@ -153,6 +205,29 @@ class ServiceContainer
             $abstract,
             $parameters,
         );
+    }
+
+    private function makeScoped(string $abstract, array $parameters): mixed
+    {
+        $scope = $this->scope?->scopeActive() ? $this->scope : null;
+
+        if ($scope !== null && $scope->hasScoped($abstract)) {
+            return $scope->getScoped($abstract);
+        }
+
+        if ($scope === null && array_key_exists($abstract, $this->scopedFallback)) {
+            return $this->scopedFallback[$abstract];
+        }
+
+        $object = $this->resolver->resolve($this, $abstract, $parameters);
+
+        if ($scope !== null) {
+            $scope->putScoped($abstract, $object);
+        } else {
+            $this->scopedFallback[$abstract] = $object;
+        }
+
+        return $object;
     }
 
     public function get(string $id): mixed

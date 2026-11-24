@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Neo\Information\Persistence\ORM\Relations\Concerns;
 
 use Neo\Information\Persistence\ORM\Model;
-use Neo\Information\Persistence\ORM\Support\Str;
+use Neo\Information\Structures\Str;
 
 /** Общая логика HasOne / HasMany: внешний ключ лежит в связанной таблице. */
 trait MatchesByForeignKey

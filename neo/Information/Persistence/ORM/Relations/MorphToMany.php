@@ -7,7 +7,7 @@ namespace Neo\Information\Persistence\ORM\Relations;
 use Neo\Information\Persistence\ORM\Attributes\Relations\MorphedByMany as InverseDef;
 use Neo\Information\Persistence\ORM\Attributes\Relations\MorphToMany as Def;
 use Neo\Information\Persistence\ORM\Model;
-use Neo\Information\Persistence\ORM\Support\Str;
+use Neo\Information\Structures\Str;
 
 /**
  * Pivot `taggables`: {morph}_id, {morph}_type и ключ второй стороны.

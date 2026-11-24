@@ -9,12 +9,12 @@ class SessionDirectiveHandler implements SessionDirectiveContract
 {
     public function get(string $key, mixed $default = null): mixed
     {
-        Session::get($key, $default);
+        return Session::get($key, $default);
     }
 
     public function has(string $key): bool
     {
-        Session::has($key);
+        return Session::has($key);
     }
 
     public function put(string $key, mixed $value): void

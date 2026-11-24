@@ -20,7 +20,7 @@ use Neo\Information\Persistence\ORM\Attributes\Rules;
 use Neo\Information\Persistence\ORM\Attributes\UseFactory;
 use Neo\Information\Persistence\ORM\Attributes\Watch;
 use Neo\Information\Persistence\ORM\Model;
-use Neo\Information\Persistence\ORM\Support\Str;
+use Neo\Information\Structures\Str;
 use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionNamedType;

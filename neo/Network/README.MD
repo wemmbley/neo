@@ -43,3 +43,7 @@ The current `HttpServiceProvider` binds the Fiber-based development context. A p
 7. HTTP adapter serializes queued cookies into `Set-Cookie` headers and leaves request context.
 
 No PHP native session functions or `$_SESSION` are used.
+
+## HTTP
+
+Роутер, Request/Response, middleware, ядро и сервер описаны в `docs/Specifications/Http Specification.md` (раздел «Реализация»). Защита (CSRF, XSS, CORS, rate limit, заголовки, доверенные прокси) живёт в `neo/Security`.

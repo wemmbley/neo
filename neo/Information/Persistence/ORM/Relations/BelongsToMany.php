@@ -6,7 +6,7 @@ namespace Neo\Information\Persistence\ORM\Relations;
 
 use Neo\Information\Persistence\ORM\Attributes\Relations\BelongsToMany as Def;
 use Neo\Information\Persistence\ORM\Model;
-use Neo\Information\Persistence\ORM\Support\Str;
+use Neo\Information\Structures\Str;
 
 class BelongsToMany extends ManyRelation
 {

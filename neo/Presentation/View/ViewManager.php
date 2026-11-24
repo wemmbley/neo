@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Neo\Presentation\View;
 
+use Closure;
 use Neo\Presentation\View\Directives\BasicDirective;
 use Neo\Presentation\View\Transfers\ConfigTransfer;
 
@@ -22,6 +23,15 @@ class ViewManager
     private Compiler $compiler;
     private Renderer $renderer;
 
+    /**
+     * Общие данные для всех шаблонов, вычисляемые на КАЖДЫЙ рендер (например, $errors из сессии
+     * текущего запроса). ViewManager общий для процесса, поэтому данные запроса сюда не пишутся,
+     * а берутся функцией: это безопасно при одновременной обработке запросов (Swoole).
+     *
+     * @var Closure(): array<string, mixed>|null
+     */
+    private ?Closure $sharedResolver = null;
+
     public function __construct(
         private array $config = [],
     ) {
@@ -38,7 +48,7 @@ class ViewManager
      */
     public function render(string $view, array $data = []): string
     {
-        return $this->renderer->render($view, $data);
+        return $this->renderer->render($view, $this->withShared($data));
     }
 
     /**
@@ -46,7 +56,26 @@ class ViewManager
      */
     public function fragment(string $view, string $fragment, array $data = []): string
     {
-        return $this->renderer->renderFragment($view, $fragment, $data);
+        return $this->renderer->renderFragment($view, $fragment, $this->withShared($data));
+    }
+
+    /**
+     * Подключает источник общих данных: `View::shareUsing(fn () => ['errors' => ...])`.
+     * Данные, переданные в render() напрямую, имеют приоритет.
+     *
+     * @param Closure(): array<string, mixed> $resolver
+     */
+    public function shareUsing(Closure $resolver): static
+    {
+        $this->sharedResolver = $resolver;
+
+        return $this;
+    }
+
+    /** @param array<string, mixed> $data */
+    private function withShared(array $data): array
+    {
+        return $this->sharedResolver === null ? $data : [...($this->sharedResolver)(), ...$data];
     }
 
     public function exists(string $view): bool

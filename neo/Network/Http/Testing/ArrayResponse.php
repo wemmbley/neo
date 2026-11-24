@@ -11,9 +11,11 @@ final class ArrayResponse implements ResponseContract
 {
     private array $cookies = [];
 
-    public function withCookie(CookieValue $cookie): void
+    public function withCookie(CookieValue $cookie): static
     {
         $this->cookies[$cookie->name] = $cookie;
+
+        return $this;
     }
 
     public function cookies(): array

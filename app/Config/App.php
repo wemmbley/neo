@@ -28,6 +28,7 @@ return [
         \Neo\Information\Validator\ValidatorServiceProvider::class,
         \Neo\Information\Persistence\Database\DatabaseServiceProvider::class,
         \Neo\Network\Session\SessionServiceProvider::class,
+        \Neo\Security\SecurityServiceProvider::class,
         \Neo\Information\Persistence\ORM\ORMServiceProvider::class,
         \Neo\Information\Faker\FakerServiceProvider::class,
         \Neo\Presentation\View\ViewServiceProvider::class,
@@ -38,5 +39,11 @@ return [
     # Фасады, которым выдаётся короткий алиас (Neo\Foo\Bar => Bar).
     # По умолчанию не обязательно, удобный сахар для вызова фасадов.
     #
-    'facades' => [],
+    'facades' => [
+        \Neo\Network\Http\Facades\Route::class,
+        \Neo\Network\Http\Facades\Middleware::class,
+        \Neo\Network\Http\Facades\URL::class,
+        \Neo\Network\Http\Facades\Redirect::class,
+        \Neo\Network\Http\Facades\Response::class,
+    ],
 ];

@@ -8,5 +8,9 @@ use Neo\Network\Cookie\CookieValue;
 
 interface ResponseContract
 {
-    public function withCookie(CookieValue $cookie): void;
+    /** Ставит куку в очередь на отправку (одна кука на name+path+domain). */
+    public function withCookie(CookieValue $cookie): static;
+
+    /** @return array<string, CookieValue> */
+    public function cookies(): array;
 }

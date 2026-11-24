@@ -16,6 +16,8 @@ class DebugDirective extends BasicDirective
             return '';
         }
 
+        // $expression returns ''. everytime. bug.
+
         return env('APP_DEBUG', false) ? $expression : '';
     }
 

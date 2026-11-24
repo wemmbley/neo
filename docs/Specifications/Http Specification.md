@@ -194,3 +194,104 @@ HTTP-адаптер: принял Request, вызвал сценарий и пр
 # HttpException
 
 Форма ответа определяется по реквесту, глядя на accept.
+
+
+# Реализация
+
+Раздел описывает то, что уже написано. Остальной документ остаётся проектным описанием.
+
+## Запуск
+
+| Среда                           | Как запускается                                                                   | Что нужно                   |
+|---------------------------------|-----------------------------------------------------------------------------------|-----------------------------|
+| FPM / Apache / `php -S`         | `public/index.php` → `Bootstrap::run()` → `Kernel::run()` → `HttpKernel::serve()` | ничего, расширения не нужны |
+| Сервер для разработки           | `php cli serve` (встроенный сервер PHP, статика отдаётся сервером)                | ничего                      |
+| Swoole (опционально, ускорение) | `php cli serve --swoole` → `Neo\Network\Http\Server\SwooleServer`                 | расширение `swoole`         |
+
+Движок целиком работает без Swoole. Класс `SwooleServer` подключается только командой `serve --swoole`.
+`Kernel` про HTTP ничего не знает: HTTP-модуль вешает свой обработчик через `Kernel::runUsing()`.
+Будущие серверы (UDP для STUN/TURN) живут рядом: `Neo\Network\Udp\Server`.
+
+## Безопасность в долгоживущем процессе (Swoole)
+
+* Singleton-сервисы (Router, MiddlewareRegistry, CookieManager, SessionManager, UrlGenerator...) не хранят данные запроса в свойствах: всё лежит в `RequestContext` (корутина Swoole / Fiber / обычный процесс определяются автоматически).
+* `Route` после загрузки не меняется. Параметры запроса живут в копии маршрута (`Route::bound()`), её хранит `Request`.
+* В контейнере есть `scoped()`: один экземпляр на запрос. `Request` и `RequestContract` зарегистрированы как scoped.
+* Контроллер, middleware и FormRequest создаются заново на каждый запрос.
+* Корутинные хуки ввода-вывода выключены по умолчанию (`hook_flags = 0`): слой БД не рассчитан на одно соединение PDO в нескольких корутинах.
+* Swoole-адаптер написан по документации и **не проверялся** (в среде разработки нет расширения). Всё остальное проверено тестами и живым запуском через `php -S`.
+
+## Жизненный цикл (как работает сейчас)
+
+```
+Request::capture()                          (SAPI)  или Swoole-запрос → Request
+  → RequestContext::enter(request, pending response)
+  → глобальные middleware: TrustProxies, TrustHosts, HandleCors, SecurityHeaders,
+                           ValidatePostSize, TrimStrings, ConvertEmptyStringsToNull
+  → маршрутизация (404 / 405 / OPTIONS)
+  → маршрутные middleware (группа web или api, свои)
+  → ParameterResolver: Request, FormRequest (проверка), параметры, модели, enum, сервисы
+  → контроллер / замыкание → Responsable | Response | array | string → Response
+  → обратно через middleware → prepare() → отправка → terminate()
+```
+
+Исключение внутри любого слоя превращается в `Response` на месте (HTTP-конвейер), поэтому внешние слои
+(сессия, куки, CORS, заголовки безопасности) всегда успевают отработать: ошибки валидации сохраняются
+в сессию, 404 получает заголовки безопасности.
+
+## Встроенные middleware
+
+| Псевдоним          | Класс                                               | Где по умолчанию              |
+|--------------------|-----------------------------------------------------|-------------------------------|
+| `proxies`          | `Neo\Security\Middleware\TrustProxies`              | глобальное                    |
+| `hosts`            | `Neo\Security\Middleware\TrustHosts`                | глобальное                    |
+| `cors`             | `Neo\Network\Http\Foundation\Middleware\HandleCors` | глобальное                    |
+| `security.headers` | `Neo\Security\Middleware\SecurityHeaders`           | глобальное                    |
+| `postsize`         | `...\Foundation\Middleware\ValidatePostSize`        | глобальное                    |
+| `trim`, `nulls`    | `TrimStrings`, `ConvertEmptyStringsToNull`          | глобальные                    |
+| `cookies`          | `Neo\Network\Cookie\Middleware\EncryptCookies`      | группа `web`                  |
+| `cookies.queue`    | `...\Cookie\Middleware\AddQueuedCookiesToResponse`  | группа `web`                  |
+| `session`          | `Neo\Network\Session\Middleware\StartSession`       | группа `web`                  |
+| `csrf`             | `...\Foundation\Middleware\VerifyCsrfToken`         | группа `web`                  |
+| `bindings`         | `...\Routing\Middleware\SubstituteBindings`         | группы `web`, `api`           |
+| `throttle`         | `...\Routing\Middleware\ThrottleRequests`           | группа `api` (`throttle:api`) |
+| `signed`           | `...\Routing\Middleware\ValidateSignature`          | по имени                      |
+
+`auth` и `can` относятся к модулю авторизации, `errors` (ShareErrorsFromSession) 
+к Presentation. Они появятся вместе с модулями. Любое незарегистрированное имя 
+middleware **даёт ошибку**, а не пропускается молча.
+
+Свои middleware: `Middleware::register('auth', Authenticate::class)`, группы и порядок: `app/Config/Http.php`.
+
+## Защиты
+
+| Угроза                                | Что сделано                                                                                                                                                                              |
+|---------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| CSRF                                  | токен привязан к сессии (HMAC + срок), `_token` / `X-CSRF-TOKEN` / `X-XSRF-TOKEN`, проверка заголовка `Origin`, подмена метода только `POST → PUT/PATCH/DELETE`                          |
+| XSS                                   | `e()`, `Escaper::html/attr/js/url/safeUrl`, CSP с nonce на запрос (`csp_nonce()`), HttpOnly-куки, `nosniff`, опасные файлы (HTML, SVG) отдаются как скачивание                           |
+| Подделка IP, схемы, хоста             | `X-Forwarded-*` учитываются только от доверенных прокси (IP, CIDR), IP берётся справа налево; Host проверяется по формату и по белому списку                                             |
+| Header injection / response splitting | CR, LF, NUL запрещены в именах и значениях заголовков, куки, `Location`                                                                                                                  |
+| Открытый редирект                     | `back()` принимает Referer только со своего хоста, редирект запрещает схемы кроме http(s)                                                                                                |
+| Кража и подмена кук                   | AES-GCM, шифртекст привязан к имени куки, подделанные куки отбрасываются; `Secure` автоматически по схеме запроса; `__Host-`/`__Secure-` проверяются; `SameSite=None` форсирует `Secure` |
+| Перебор                               | `throttle` (по IP или пользователю, именованные лимитеры), `Retry-After`, 429                                                                                                            |
+| Подмена ссылок                        | подписанные URL (`URL::signedRoute`, `temporarySignedRoute`, middleware `signed`)                                                                                                        |
+| Большие тела                          | `ValidatePostSize` (413), JSON с лимитом глубины, битый JSON даёт 400                                                                                                                    |
+| Утечки через ошибки                   | в боевом режиме 5xx отдают `Server Error`, подробности только при `app.debug`                                                                                                            |
+| CORS                                  | белый список Origin, `*` не работает вместе с куками, `Vary: Origin`, preflight до маршрутизации                                                                                         |
+
+## Что стоит знать
+
+* Для боевого сайта заполните `security.trusted_hosts` и, если стоите за прокси, `security.proxies` (`app/Config/Security.php`).
+* Файловый кэш не атомарен между процессами: лимиты `throttle` могут чуть недосчитывать при гонке. Для строгих лимитов (вход, SMS) нужен атомарный стор.
+* Группа `web` по умолчанию требует рабочую сессию. Для драйвера `database` нужна таблица `sessions`: миграция лежит в `app/Database/Migrations/Sessions.php` (`php cli migrate`). Без неё первая же страница вернёт 500 (или поставьте `SESSION_DRIVER=file`).
+* `with()`, `withInput()`, `withErrors()` у редиректа работают только в маршрутах с `StartSession`, иначе выбрасывается понятная ошибка, а не теряются данные.
+* Тесты: `php cli test neo/Network/Http`, `neo/Security`, `neo/Information/Structures`. Для проверки маршрутов без сети есть `Neo\Network\Http\Testing\TestClient`.
+* Список маршрутов: `php cli route:list [--name=] [--path=]`.
+
+## Связь с шаблонизатором (Presentation/View)
+
+* `view('home')` (хелпер модуля View) возвращает строку, роутер превращает её в HTML-ответ. Если нужен статус или заголовки: `response()->view('home', $data, 201)` или `Route::view('/', 'home')`: это `ViewResponse`, он рисует шаблон через `ViewRendererContract` (`Infrastructure/HttpViewRenderer`).
+* `@csrf` берёт токен из `CsrfTokenManager` (`Infrastructure/CsrfDirectiveHandler`): он привязан к сессии, именно его проверяет `VerifyCsrfToken`. Случайный `Crypt::token()` проверка бы не приняла.
+* `@method('PUT')` работает вместе с подменой метода в `Request` (подменяется только POST и только на PUT/PATCH/DELETE).
+* `@error('поле')` получает `$errors` в каждом шаблоне: `ViewManager::shareUsing()` отдаёт ошибки из flash-сессии ТЕКУЩЕГО запроса (функция вызывается на каждый рендер, общий синглтон ничего не запоминает).
+* `ValidationException` теперь содержит в сообщении список ошибок для разработчика. Клиенту уходит только первая строка (`message`), ошибки отдельным полем `errors`.

@@ -9,7 +9,7 @@ class CryptServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->bind(CryptManager::class, function () {
+        $this->app->singleton(CryptManager::class, function () {
             $key = env('APP_KEY');
 
             if(empty($key)) {

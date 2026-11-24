@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Neo\Foundation\Kernel;
 
+use Closure;
 use LogicException;
 use Neo\Foundation\Config\Config;
 use Neo\Foundation\Kernel\Bootstrappers\ConfigBootstrapper;
@@ -68,6 +69,12 @@ final class Kernel
     private bool $booted = false;
 
     private bool $bootstrapped = false;
+
+    /**
+     * Что делает run() после boot(): HTTP-модуль вешает сюда обработку запроса.
+     * Консоль run() не вызывает, поэтому на неё это не влияет.
+     */
+    private ?Closure $runner = null;
 
     /**
      * Первые инъекции в контейнер, строго в этом порядке.
@@ -219,6 +226,23 @@ final class Kernel
     {
         $this->bootstrap();
         $this->boot();
+
+        if ($this->runner !== null) {
+            ($this->runner)($this);
+        }
+    }
+
+    /**
+     * Задаёт обработчик web-запуска. Вызывается из register()/boot() провайдера,
+     * ядро ничего не знает про HTTP: «башня» зависит только вниз.
+     *
+     * @param Closure(self): void $runner
+     */
+    public function runUsing(Closure $runner): static
+    {
+        $this->runner = $runner;
+
+        return $this;
     }
 
     public function isBooted(): bool

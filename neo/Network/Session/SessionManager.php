@@ -150,7 +150,7 @@ final class SessionManager
         }
         $this->cookies->set((string) ($this->config['cookie'] ?? 'neo_session'), $state['id'], (bool) ($this->config['expire_on_close'] ?? false) ? 0 : (int) ($this->config['lifetime'] ?? 120), [
             'path' => $this->config['path'] ?? '/', 'domain' => $this->config['domain'] ?? null,
-            'secure' => $this->config['secure'] ?? false, 'http_only' => $this->config['http_only'] ?? true,
+            'secure' => $this->config['secure'] ?? null, 'http_only' => $this->config['http_only'] ?? true,
             'same_site' => $this->config['same_site'] ?? 'lax', 'partitioned' => $this->config['partitioned'] ?? false,
         ]);
         $state['dirty'] = false;

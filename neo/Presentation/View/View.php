@@ -11,6 +11,7 @@ use Neo\Presentation\View\Directives\BasicDirective;
  * @method static string fragment(string $view, string $fragment, array $data = [])
  * @methid static bool exists(string $view)
  * @method static static directive(BasicDirective $directive)
+ * @method static static shareUsing(\Closure $resolver)
  * @method static void flush()
  */
 #[FacadeOf(ViewManager::class)]

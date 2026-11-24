@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Neo\Network\Http\Console;
 
 use Neo\Foundation\Console\Commands\Command;
+use Neo\Foundation\Runtime\Lifecycle;
 use Neo\Network\Http\HttpKernel;
 use Neo\Network\Http\Server\SwooleServer;
 
@@ -16,7 +17,7 @@ use Neo\Network\Http\Server\SwooleServer;
  */
 class ServeCommand extends Command
 {
-    protected string $signature = 'serve {--host=127.0.0.1 : Адрес} {--port=8000 : Порт} {--workers=4 : Число рабочих процессов} {--swoole : Использовать Swoole}';
+    protected string $signature = 'serve {--host=127.0.0.1 : Адрес} {--port=8000 : Порт} {--workers=4 : Число рабочих процессов} {--swoole : Использовать Swoole или OpenSwoole}';
 
     protected string $description = 'Запускает HTTP-сервер для разработки';
 
@@ -35,7 +36,14 @@ class ServeCommand extends Command
 
             $this->info("Swoole: http://{$host}:{$port} (workers: {$workers})");
 
-            (new SwooleServer(kernel(HttpKernel::class), ['host' => $host, 'port' => $port, 'workers' => $workers]))->start();
+            $options = [
+                ...array_filter((array) config('runtime.swoole', []), static fn (mixed $value): bool => $value !== null),
+                'host' => $host,
+                'port' => $port,
+                'workers' => $workers,
+            ];
+
+            (new SwooleServer(kernel(HttpKernel::class), $options, kernel(Lifecycle::class)))->start();
 
             return self::SUCCESS;
         }

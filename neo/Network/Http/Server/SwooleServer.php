@@ -4,72 +4,88 @@ declare(strict_types=1);
 
 namespace Neo\Network\Http\Server;
 
-use RuntimeException;
-use Throwable;
+use Neo\Foundation\Runtime\Exceptions\TimeoutException;
+use Neo\Foundation\Runtime\Lifecycle;
+use Neo\Foundation\Runtime\Runtime;
+use Neo\Foundation\Runtime\Swoole\SwooleApi;
+use Neo\Foundation\Runtime\Swoole\SwooleRuntime;
+use Neo\Foundation\Runtime\Swoole\SwooleTaskDispatcher;
+use Neo\Foundation\Runtime\Tasks\TaskRunner;
 use Neo\Network\Http\FileResponse;
 use Neo\Network\Http\HttpKernel;
 use Neo\Network\Http\Request;
 use Neo\Network\Http\Response;
+use RuntimeException;
+use Throwable;
 
 /**
- * Необязательный ускоритель: HTTP-сервер на Swoole. Весь движок работает и без него
- * (классический SAPI через public/index.php); этот класс подключается ТОЛЬКО командой
- * `php cli serve --swoole` и требует расширение swoole.
+ * Необязательный ускоритель: HTTP-сервер на Swoole или OpenSwoole. Весь движок работает и без него
+ * (классический SAPI через public/index.php, тот же HttpKernel); этот класс подключается ТОЛЬКО
+ * командой `php cli serve --swoole` и требует расширение swoole/openswoole.
  *
- * Как сохраняется изоляция запросов:
- *  - каждый запрос Swoole выполняет в своей корутине; RequestContext хранит запрос,
- *    ответ и scoped-сервисы в контексте этой корутины;
+ * Жизненный цикл (docs/Specifications/Runtime Specification.md):
+ *
+ *   master:  загружает приложение один раз (Kernel, роутер, конфиг), форкает воркеры
+ *   worker:  workerStart  → Runtime::use(SwooleRuntime), Lifecycle::workerStart() (пулы, снимки)
+ *   request: одна корутина на запрос → HttpKernel::serve() → Lifecycle::requestEnd() в finally
+ *   worker:  workerStop   → Lifecycle::workerStop() (закрыть пулы и соединения), graceful
+ *
+ * Изоляция запросов:
+ *  - RequestContext хранит запрос, ответ и scoped-сервисы в контексте корутины;
  *  - Router, MiddlewareRegistry, Cookie/Session-менеджеры не хранят данных запроса в свойствах;
- *  - корутинные хуки ввода-вывода по умолчанию ВЫКЛЮЧЕНЫ (`hook_flags` = 0): PDO и файловый
- *    кэш приложения не рассчитаны на одновременное использование одного соединения из нескольких
- *    корутин. Включать хуки можно, только когда слой БД это поддерживает.
+ *  - соединения БД берутся из пула воркера и не делятся между одновременными запросами;
+ *  - состояние, пережившее запрос, сбрасывается через Lifecycle (Resettable);
+ *  - исключение (и `exit()`, который в корутине превращается в исключение) завершает только запрос.
  *
- * Код этого файла не проверен в песочнице разработки (там нет расширения Swoole);
- * он написан по документации Swoole\Http\Server.
+ * Хуки ввода-вывода: по умолчанию включён безопасный набор: сеть, sleep, curl, потоки и PDO-драйверы,
+ * кроме файловых операций. Файловый кэш и файловые сессии приложения не рассчитаны на то, что
+ * чтение-запись одного файла приостановится посреди операции. Набор меняется `hook_flags`
+ * (0 = хуки выключены, ввод-вывод блокирует воркер, как раньше).
+ *
+ * Код этого файла не проверен на живом Swoole (в среде разработки нет расширения): он написан по
+ * документации Swoole\Http\Server и OpenSwoole\HTTP\Server, логика покрыта тестами на заглушках.
  */
 final class SwooleServer implements ServerContract
 {
-    private ?\Swoole\Http\Server $server = null;
+    private ?object $server = null;
 
     /**
-     * @param array{host?: string, port?: int, workers?: int, max_request?: int, hook_flags?: int, ssl_cert?: string, ssl_key?: string} $options
+     * @param array{host?: string, port?: int, workers?: int, max_request?: int, max_wait_time?: int, request_timeout?: float|int, task_workers?: int, task_max_request?: int, hook_flags?: int|null, ssl_cert?: string, ssl_key?: string} $options
      */
     public function __construct(
         private readonly HttpKernel $http,
         private readonly array $options = [],
+        private readonly ?Lifecycle $lifecycle = null,
     ) {}
 
     public function start(): void
     {
-        if (!extension_loaded('swoole') && !extension_loaded('openswoole')) {
+        if (!SwooleApi::available()) {
             throw new RuntimeException('Расширение swoole не установлено. Движок работает и без него: запустите `php cli serve` без --swoole.');
         }
 
         $ssl = isset($this->options['ssl_cert'], $this->options['ssl_key']);
 
-        $this->server = new \Swoole\Http\Server(
+        $class = SwooleApi::cls('Http\Server');
+
+        $this->server = new $class(
             $this->options['host'] ?? '127.0.0.1',
             (int) ($this->options['port'] ?? 8000),
-            SWOOLE_PROCESS,
-            $ssl ? SWOOLE_SOCK_TCP | SWOOLE_SSL : SWOOLE_SOCK_TCP,
+            SwooleApi::constant('PROCESS'),
+            $ssl ? SwooleApi::constant('SOCK_TCP') | SwooleApi::constant('SSL') : SwooleApi::constant('SOCK_TCP'),
         );
 
-        $settings = [
-            'worker_num' => $this->options['workers'] ?? swoole_cpu_num(),
-            'max_request' => $this->options['max_request'] ?? 5000,
-            'enable_coroutine' => true,
-            'hook_flags' => $this->options['hook_flags'] ?? 0,
-            'http_compression' => false,
-            'package_max_length' => 16 * 1024 * 1024,
-        ];
+        $this->server->set($this->settings($ssl));
 
-        if ($ssl) {
-            $settings['ssl_cert_file'] = $this->options['ssl_cert'];
-            $settings['ssl_key_file'] = $this->options['ssl_key'];
+        $this->server->on('workerStart', fn (object $server, int $workerId) => $this->workerStart());
+        $this->server->on('workerStop', fn (object $server, int $workerId) => $this->workerStop());
+        $this->server->on('request', fn (object $request, object $response) => $this->handle($request, $response, $ssl));
+
+        if ($this->taskWorkers() > 0) {
+            $this->server->on('task', fn (object $server, object $task) => $this->task($task));
+            $this->server->on('finish', static fn () => null);
         }
 
-        $this->server->set($settings);
-        $this->server->on('request', fn ($request, $response) => $this->handle($request, $response, $ssl));
         $this->server->start();
     }
 
@@ -78,12 +94,105 @@ final class SwooleServer implements ServerContract
         $this->server?->shutdown();
     }
 
-    private function handle(\Swoole\Http\Request $swooleRequest, \Swoole\Http\Response $swooleResponse, bool $ssl): void
+    /** @return array<string, mixed> */
+    public function settings(bool $ssl = false): array
     {
+        $settings = [
+            'worker_num' => $this->options['workers'] ?? SwooleApi::cpuNum(),
+            'max_request' => $this->options['max_request'] ?? 5000,
+            'enable_coroutine' => true,
+            'hook_flags' => $this->options['hook_flags'] ?? self::safeHookFlags(),
+            'http_compression' => false,
+            'package_max_length' => 16 * 1024 * 1024,
+
+            # Graceful: при остановке и перезапуске воркер дорабатывает текущие запросы.
+            'reload_async' => true,
+            'max_wait_time' => $this->options['max_wait_time'] ?? 30,
+        ];
+
+        if ($this->taskWorkers() > 0) {
+            $settings['task_worker_num'] = $this->taskWorkers();
+            $settings['task_enable_coroutine'] = true;
+            $settings['task_max_request'] = $this->options['task_max_request'] ?? 1000;
+        }
+
+        if ($ssl) {
+            $settings['ssl_cert_file'] = $this->options['ssl_cert'];
+            $settings['ssl_key_file'] = $this->options['ssl_key'];
+        }
+
+        return $settings;
+    }
+
+    /**
+     * Все хуки, кроме файловых и sqlite: файловый кэш/сессии работают блокирующе и потому атомарно,
+     * а sqlite-драйвер всё равно блокирующий.
+     */
+    public static function safeHookFlags(): int
+    {
+        $flags = SwooleApi::constant('HOOK_ALL');
+
+        foreach (['HOOK_FILE', 'HOOK_STDIO', 'HOOK_SQLITE', 'HOOK_PDO_SQLITE'] as $name) {
+            foreach (['SWOOLE_', 'OPENSWOOLE_'] as $prefix) {
+                if (defined($prefix . $name)) {
+                    $flags &= ~(int) constant($prefix . $name);
+                }
+            }
+        }
+
+        return $flags;
+    }
+
+    private function taskWorkers(): int
+    {
+        return max(0, (int) ($this->options['task_workers'] ?? 0));
+    }
+
+    private function workerStart(): void
+    {
+        $runtime = new SwooleRuntime();
+
+        # Только воркеры запросов отправляют задачи: свой сервер им нужен для $server->task().
+        $runtime->attachTaskServer($this->taskWorkers() > 0 ? $this->server : null);
+        Runtime::use($runtime);
+
+        $this->lifecycle?->workerStart();
+    }
+
+    private function workerStop(): void
+    {
+        $this->lifecycle?->workerStop();
+    }
+
+    private function handle(object $swooleRequest, object $swooleResponse, bool $ssl): void
+    {
+        $started = false;
+
         try {
             $request = $this->makeRequest($swooleRequest, $ssl);
 
-            $this->http->serve($request, fn (Response $response) => $this->emit($response, $swooleResponse));
+            $work = function () use ($request, $swooleResponse, &$started): void {
+                $this->http->serve($request, function (Response $response) use ($swooleResponse, &$started): void {
+                    $started = true;
+                    $this->emit($response, $swooleResponse);
+                });
+            };
+
+            $timeout = (float) ($this->options['request_timeout'] ?? 0);
+
+            if ($timeout > 0 && Runtime::current()->inCoroutine()) {
+                # Запрос идёт в дочерней корутине: по таймауту её можно отменить, а клиенту ответить 504.
+                Runtime::current()->async()->timeout($timeout, $work);
+            } else {
+                $work();
+            }
+        } catch (TimeoutException) {
+            error_log('[swoole] request timeout');
+
+            if (!$started && $swooleResponse->isWritable()) {
+                $swooleResponse->status(504);
+                $swooleResponse->end('Gateway Timeout');
+            }
         } catch (Throwable $e) {
             error_log('[swoole] ' . $e::class . ': ' . $e->getMessage());
 
@@ -91,10 +200,31 @@ final class SwooleServer implements ServerContract
                 $swooleResponse->status(500);
                 $swooleResponse->end('Server Error');
             }
+        } finally {
+            # Состояние запроса сбрасывается всегда, даже при ошибке.
+            $this->lifecycle?->requestEnd();
         }
     }
 
-    private function makeRequest(\Swoole\Http\Request $request, bool $ssl): Request
+    /** Задача из очереди task workers: выполняется в их процессе, ошибка логируется и не роняет воркер. */
+    private function task(object $task): void
+    {
+        $data = $task->data;
+
+        try {
+            if (is_array($data) && isset($data[SwooleTaskDispatcher::KEY_TASK])) {
+                TaskRunner::run((string) $data[SwooleTaskDispatcher::KEY_TASK], (array) ($data[SwooleTaskDispatcher::KEY_PAYLOAD] ?? []));
+            }
+        } finally {
+            $this->lifecycle?->requestEnd();
+
+            if (method_exists($task, 'finish')) {
+                $task->finish(true);
+            }
+        }
+    }
+
+    private function makeRequest(object $request, bool $ssl): Request
     {
         $server = [];
 
@@ -131,7 +261,7 @@ final class SwooleServer implements ServerContract
         );
     }
 
-    private function emit(Response $response, \Swoole\Http\Response $out): void
+    private function emit(Response $response, object $out): void
     {
         $out->status($response->status(), $response->statusText());
 

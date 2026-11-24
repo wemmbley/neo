@@ -17,6 +17,7 @@ return [
     # Провайдеры, которые Kernel регистрирует после бутстрапперов.
     #
     'providers' => [
+        \Neo\Foundation\Runtime\RuntimeServiceProvider::class,
         \Neo\Security\Crypt\CryptServiceProvider::class,
         \Neo\Foundation\Kernel\Events\EventServiceProvider::class,
         \Neo\Information\Lang\LangServiceProvider::class,
@@ -30,8 +31,8 @@ return [
         \Neo\Network\Session\SessionServiceProvider::class,
         \Neo\Security\SecurityServiceProvider::class,
         \Neo\Information\Persistence\ORM\ORMServiceProvider::class,
-        \Neo\Security\AuthServiceProvider::class,
         \Neo\Information\Faker\FakerServiceProvider::class,
+        \Neo\Information\Datetime\DatetimeServiceProvider::class,
         \Neo\Presentation\View\ViewServiceProvider::class,
         \App\Providers\AppServiceProvider::class,
     ],

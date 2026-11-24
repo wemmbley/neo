@@ -12,7 +12,7 @@
 ## Первый эшелон.
 
 ## ⚙️⛓️‍Runtime
-- Базовый рантайм синхронного PHP точка старта.
+- Базовый рантайм синхронного PHP по умолчанию.
 - Swoole Runtime: 'php cli serve --swoole'.
 - Возможность делать другие async рантаймы. 
 - Coroutines, Background, Streaming, Threads.

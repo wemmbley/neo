@@ -373,3 +373,57 @@ interface AsyncIO
 - threads — многопоточное исполнение.
 - background — фоновые задачи.
 - streaming — потоковая передача.
+
+---
+
+## Реализация в Neo (Swoole / OpenSwoole)
+
+Модуль: `neo/Foundation/Runtime`. Синхронный PHP остаётся режимом по умолчанию: `public/index.php` не меняется, рантайм определяется на лету (`Runtime::current()`), а адаптер долгоживущего сервера выбирает его явно при старте воркера.
+
+### Что где
+
+| Что | Где |
+|---|---|
+| Контракты: `RuntimeContract`, `RuntimeCapabilities`, `ExecutionContext`, `Resettable`, `AsyncIO`/`Future`, `ChannelContract` | `neo/Foundation/Runtime/` |
+| Контекст в стиле Hyperf: `Context::get/set/has/destroy/getOrSet/override/inherited/copyFromParent` | `Runtime/Context.php` |
+| Жизненный цикл воркера и запроса: `Lifecycle` (`workerStart`, `requestEnd`, `workerStop`) | `Runtime/Lifecycle.php` |
+| Sync: `SyncRuntime`, `ProcessContext` (процесс + отдельно на Fiber), `SyncAsyncIO` (режим `None`) | `Runtime/Sync/` |
+| Swoole и OpenSwoole одним адаптером: `SwooleApi` выбирает `\Swoole\*` или `\OpenSwoole\*` | `Runtime/Swoole/` |
+| Универсальный пул (`Pool`, `PoolOptions`) на каналах рантайма | `Runtime/Pool/` |
+| HTTP-сервер: воркер-lifecycle, один запрос = одна корутина | `neo/Network/Http/Server/SwooleServer.php` |
+
+Запуск: `php cli serve --swoole` (настройки в `app/Config/Runtime.php`).
+
+### Правила изоляции (что гарантирует движок)
+
+1. Данные запроса лежат в `Context` (контекст корутины), а не в свойствах синглтонов: `RequestContext`, renderer во View, локаль `LangProcessor`.
+2. Соединение БД не делится между запросами: в корутине `DatabaseManager` берёт его из пула воркера при первом обращении и возвращает в конце запроса (`Lifecycle::requestEnd` и `defer` как подстраховка). Транзакция не переживает запрос: при возврате в пул делается откат. Оборванное соединение (`isBroken`) закрывается, после простоя делается ping. Пул отключается для соединения ключом `pool.enabled = false`; sqlite `:memory:` не пулится автоматически.
+3. Пулы и соединения принадлежат воркеру: на `workerStart` всё, что открыл master до fork, забывается.
+4. Статическое состояние Chronos (локаль, начало недели, выходные, test-now) возвращается к снимку после каждого запроса.
+5. Исключение (в корутине `exit()` тоже становится исключением) завершает только свой запрос.
+6. Хуки ввода-вывода по умолчанию: всё, кроме файловых и sqlite. Файловый кэш и файловые сессии не рассчитаны на приостановку посреди операции.
+
+### Правила для кода приложения
+
+- Не храните данные запроса в свойствах сервисов и в `static`: используйте `Context`.
+- Глобальные настройки (Chronos, `Model::preventLazyLoading`, макросы) задаются при запуске, а не на запрос.
+- Сервис с собственным состоянием между запросами реализует `Resettable` и регистрируется: `$app->make(Lifecycle::class)->resettable(MyService::class)`.
+- Конкурентные задачи: `Runtime::current()->async()->all([...])`. В sync-режиме те же вызовы выполняются последовательно, код остаётся корректным.
+- Дочерняя корутина (`go()`) не получает данные родителя копированием: `Context::inherited()` ищет у родителя, `Context::copyFromParent()` копирует явно. Соединение БД у дочерней корутины своё.
+
+### Как добавить другой рантайм (RoadRunner, FrankenPHP)
+
+1. Реализовать `RuntimeContract` (профили флагов уже есть: `Capabilities::roadRunner()`, `Capabilities::frankenPhp()`).
+2. Написать адаптер сервера, который на старте воркера делает `Runtime::use(...)` и `Lifecycle::workerStart()`, а после каждого запроса вызывает `Lifecycle::requestEnd()`.
+3. Остальной код (`HttpKernel`, `Context`, пулы, `Resettable`) менять не нужно.
+
+### Таймаут запроса, фоновые задачи, чистка пула
+
+- **Таймаут запроса:** `runtime.swoole.request_timeout` (секунды). Запрос выполняется в дочерней корутине; по истечении времени она отменяется, ресурсы возвращаются в пул, клиент получает 504. Отмена срабатывает, когда запрос ждёт ввод-вывод: чистый CPU-цикл прервать нельзя.
+- **Фоновые задачи:** класс реализует `Neo\Foundation\Runtime\Tasks\Task`, отправка `TaskDispatcher::dispatch(MyTask::class, ['id' => 5])` (или `Runtime::current()->tasks()`). Исполнитель выбирается рантаймом: sync выполняет сразу; Swoole без task workers запускает корутину воркера; с `runtime.swoole.task_workers > 0` задача уходит в отдельный процесс. Данные только в `$payload` (сериализуемые), замыкания не передаются.
+- **Чистка пула:** `pool.reap_interval` (секунды, 0 = выключена). Таймер закрывает ресурсы, простоявшие дольше `idle_timeout`, но оставляет `min`. Останавливается вместе с пулом. В sync-рантайме таймеров нет.
+
+### Известные ограничения
+
+- Код `SwooleServer` и `SwooleApi` проверен на заглушках, но не на живом расширении.
+- Задачи в task workers не повторяются при ошибке: сбой логируется. Ретраи и очередь с гарантиями доставки не реализованы.

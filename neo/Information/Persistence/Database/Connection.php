@@ -22,6 +22,9 @@ class Connection
 {
     private int $transactions = 0;
 
+    /** Связь с сервером потеряна: соединение нельзя возвращать в пул, его нужно закрыть. */
+    private bool $broken = false;
+
     /** @var list<Closure(string, array, float): void> */
     private array $listeners = [];
 
@@ -67,6 +70,44 @@ class Connection
     public function listen(Closure $listener): void
     {
         $this->listeners[] = $listener;
+    }
+
+    public function isBroken(): bool
+    {
+        return $this->broken;
+    }
+
+    /**
+     * Возвращает соединение в чистое состояние перед следующим запросом (пул, долгоживущий воркер):
+     * откатывает незавершённую транзакцию и забывает слушателей запроса. Транзакция не может
+     * пережить запрос.
+     */
+    public function reset(): void
+    {
+        try {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+        } catch (PDOException) {
+            $this->broken = true;
+        }
+
+        $this->transactions = 0;
+        $this->listeners = [];
+    }
+
+    /** Живое ли соединение: дешёвый ping для проверки после простоя в пуле. */
+    public function ping(): bool
+    {
+        try {
+            $this->pdo->query('SELECT 1')?->closeCursor();
+
+            return true;
+        } catch (PDOException) {
+            $this->broken = true;
+
+            return false;
+        }
     }
 
     # ------------------------------------------------------------------ SQL
@@ -131,6 +172,10 @@ class Connection
                 $result = $callback($stmt);
             }
         } catch (PDOException $e) {
+            if ($this->lostConnection($e)) {
+                $this->broken = true;
+            }
+
             throw new QueryException($sql, $bindings, $e);
         }
 
@@ -140,6 +185,26 @@ class Connection
         }
 
         return $result;
+    }
+
+    /** MySQL: 2006 «server has gone away», 2013 «lost connection»; ещё типичные тексты обрыва. */
+    private function lostConnection(PDOException $e): bool
+    {
+        $code = (int) ($e->errorInfo[1] ?? 0);
+
+        if ($code === 2006 || $code === 2013) {
+            return true;
+        }
+
+        $message = strtolower($e->getMessage());
+
+        foreach (['server has gone away', 'lost connection', 'broken pipe', 'error while sending', 'is dead or not enabled'] as $needle) {
+            if (str_contains($message, $needle)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function bind(PDOStatement $stmt, array $bindings): void

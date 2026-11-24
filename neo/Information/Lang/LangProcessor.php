@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Neo\Information\Lang;
 
 use Neo\Foundation\Config\DotNotation;
+use Neo\Foundation\Runtime\Context;
+use Neo\Foundation\Runtime\Runtime;
 
 /**
  * Процессор локализации.
@@ -21,6 +23,8 @@ final class LangProcessor
 {
     /** Пространство имён для ключей без "::". */
     public const DEFAULT_NAMESPACE = '*';
+
+    private const CONTEXT_KEY = 'neo.lang.locale';
 
     /** @var array<string, string> namespace => путь к папке с локалями */
     private array $namespaces = [];
@@ -64,7 +68,7 @@ final class LangProcessor
     {
         [$namespace, $file, $item] = $this->parseKey($key);
 
-        $locales = array_unique([$locale ?? $this->locale, $this->fallbackLocale]);
+        $locales = array_unique([$locale ?? $this->getLocale(), $this->fallbackLocale]);
 
         foreach ($locales as $candidate) {
             $lines = $this->load($namespace, $candidate, $file);
@@ -87,21 +91,32 @@ final class LangProcessor
     public function has(string $key, ?string $locale = null): bool
     {
         [$namespace, $file, $item] = $this->parseKey($key);
-        $lines = $this->load($namespace, $locale ?? $this->locale, $file);
+        $lines = $this->load($namespace, $locale ?? $this->getLocale(), $file);
 
         return $lines !== null && DotNotation::has($lines, $item);
     }
 
+    /**
+     * Внутри корутины (Swoole) локаль принадлежит запросу и исчезает вместе с ним: процессор общий
+     * для воркера, и `setLocale()` одного пользователя не должен менять язык другому.
+     * Вне корутин (boot, консоль, обычный PHP) это локаль по умолчанию для процесса.
+     */
     public function setLocale(string $locale): static
     {
-        $this->locale = $locale;
+        if (Runtime::current()->inCoroutine()) {
+            Context::set(self::CONTEXT_KEY, $locale);
+        } else {
+            $this->locale = $locale;
+        }
 
         return $this;
     }
 
     public function getLocale(): string
     {
-        return $this->locale;
+        return Runtime::current()->inCoroutine()
+            ? (string) Context::get(self::CONTEXT_KEY, $this->locale)
+            : $this->locale;
     }
 
     public function setFallbackLocale(string $locale): static

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Neo\Information\Persistence\Database;
 
 use Neo\Foundation\Kernel\ServiceProvider;
+use Neo\Foundation\Runtime\Lifecycle;
 use Neo\Information\Persistence\Database\Console\DbSeedCommand;
 use Neo\Information\Persistence\Database\Console\MakeMigrationCommand;
 use Neo\Information\Persistence\Database\Console\MakeSeederCommand;
@@ -31,6 +32,25 @@ class DatabaseServiceProvider extends ServiceProvider
             DatabaseManager::class,
             fn () => new DatabaseManager((array) config('database')),
         );
+
+        # Долгоживущий воркер (Swoole): соединения и пулы принадлежат воркеру, а не master-процессу,
+        # и возвращаются в пул в конце каждого запроса. В обычном PHP Lifecycle никто не вызывает.
+        $this->app->make(Lifecycle::class)
+            ->onWorkerStart(function (): void {
+                $manager = $this->app->make(DatabaseManager::class);
+                $manager->forgetInherited();
+                $manager->warmUp();
+            })
+            ->resettable(function (): void {
+                if ($this->app->getContainer()->hasInstance(DatabaseManager::class)) {
+                    $this->app->make(DatabaseManager::class)->releaseCurrent();
+                }
+            })
+            ->onWorkerStop(function (): void {
+                if ($this->app->getContainer()->hasInstance(DatabaseManager::class)) {
+                    $this->app->make(DatabaseManager::class)->close();
+                }
+            });
 
         # Schema:: всегда работает с соединением по умолчанию на момент вызова.
         $this->app->bind(

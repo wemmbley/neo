@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Neo\Presentation\View;
 
 use Closure;
+use Neo\Foundation\Runtime\Context;
 use Neo\Presentation\View\Directives\BasicDirective;
 use Neo\Presentation\View\Transfers\ConfigTransfer;
 
@@ -21,7 +22,11 @@ class ViewManager
 {
     private ConfigTransfer $configDto;
     private Compiler $compiler;
-    private Renderer $renderer;
+
+    /** Только счётчик экземпляров для уникального ключа контекста. */
+    private static int $instances = 0;
+
+    private string $rendererKey;
 
     /**
      * Общие данные для всех шаблонов, вычисляемые на КАЖДЫЙ рендер (например, $errors из сессии
@@ -40,7 +45,17 @@ class ViewManager
         $this->setConfig();
 
         $this->compiler = new Compiler($this->configDto->compiler);
-        $this->renderer = new Renderer($this->configDto, $this->compiler);
+        $this->rendererKey = 'neo.view.renderer#' . ++self::$instances;
+    }
+
+    /**
+     * Renderer хранит состояние отрисовки (стеки, слоты, циклы), поэтому он свой у каждого запроса:
+     * ViewManager общий для процесса, и два запроса не должны писать в одни и те же буферы,
+     * даже если шаблон приостановит корутину на вводе-выводе. В обычном PHP это один объект на процесс.
+     */
+    private function renderer(): Renderer
+    {
+        return Context::getOrSet($this->rendererKey, fn (): Renderer => new Renderer($this->configDto, $this->compiler));
     }
 
     /**
@@ -48,7 +63,7 @@ class ViewManager
      */
     public function render(string $view, array $data = []): string
     {
-        return $this->renderer->render($view, $this->withShared($data));
+        return $this->renderer()->render($view, $this->withShared($data));
     }
 
     /**
@@ -56,7 +71,7 @@ class ViewManager
      */
     public function fragment(string $view, string $fragment, array $data = []): string
     {
-        return $this->renderer->renderFragment($view, $fragment, $this->withShared($data));
+        return $this->renderer()->renderFragment($view, $fragment, $this->withShared($data));
     }
 
     /**
@@ -80,7 +95,7 @@ class ViewManager
 
     public function exists(string $view): bool
     {
-        return $this->renderer->exists($view);
+        return $this->renderer()->exists($view);
     }
 
     /**
@@ -99,7 +114,7 @@ class ViewManager
      */
     public function flush(): void
     {
-        $this->renderer->flush();
+        $this->renderer()->flush();
     }
 
     private function setConfig(): void

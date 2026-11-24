@@ -45,7 +45,7 @@ class MigrateFreshCommand extends Command
         $this->schema->execute($this->schema->plan(), true, null, fn (string $l) => $this->info('Commit ' . $l));
 
         if ($this->option('seed')) {
-            return (int) kernel(DbSeedCommand::class)->handle();
+            return (int) app(DbSeedCommand::class)->handle();
         }
 
         return self::SUCCESS;

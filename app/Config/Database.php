@@ -5,6 +5,19 @@ declare(strict_types=1);
 return [
     'default' => env('DB_CONNECTION', 'sqlite'),
 
+    # Пул соединений. Работает только там, где рантайм требует пул (Swoole): в обычном PHP это
+    # ни на что не влияет. Переопределяется для конкретного соединения ключом `pool` внутри него;
+    # `'pool' => ['enabled' => false]` отключает пул для соединения.
+    'pool' => [
+        'min' => (int) env('DB_POOL_MIN', 1),
+        'max' => (int) env('DB_POOL_MAX', 10),
+        'acquire_timeout' => (float) env('DB_POOL_ACQUIRE_TIMEOUT', 3.0),
+        'idle_timeout' => 60.0,
+        'max_lifetime' => 3600.0,
+        'validate_after' => 30.0,
+        'reap_interval' => 30.0, # фоновая чистка простаивающих соединений, секунды; 0 = выключена
+    ],
+
     'connections' => [
         'sqlite' => [
             'driver' => 'sqlite',

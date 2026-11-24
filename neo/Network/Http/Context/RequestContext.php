@@ -4,24 +4,20 @@ declare(strict_types=1);
 
 namespace Neo\Network\Http\Context;
 
-use Fiber;
 use LogicException;
 use Neo\Foundation\Kernel\ScopeContract;
+use Neo\Foundation\Runtime\Context;
 use Neo\Network\Http\Contracts\RequestContextContract;
 use Neo\Network\Http\Contracts\RequestContract;
 use Neo\Network\Http\Contracts\ResponseContract;
-use WeakMap;
 
 /**
- * Контекст текущего HTTP-запроса. Один класс для всех сред, без настроек:
+ * Контекст текущего HTTP-запроса. Один класс для всех сред, без настроек.
  *
- *  - внутри корутины Swoole состояние хранится в контексте корутины
- *    (дочерние корутины видят состояние родителя);
- *  - внутри Fiber (тесты, параллельные задачи) в WeakMap по Fiber;
- *  - иначе в обычной переменной: классический SAPI, один запрос на процесс.
- *
- * Swoole определяется на лету через class_exists(..., false): без расширения этот
- * код просто не выполняется, расширение не требуется.
+ * Состояние запроса лежит в контексте исполнения текущего рантайма ({@see Context}):
+ *  - Swoole / OpenSwoole: в контексте корутины запроса, дочерние корутины видят состояние родителя;
+ *  - Fiber (тесты, параллельные задачи): отдельно на каждый Fiber;
+ *  - классический SAPI: в хранилище процесса, один запрос на процесс.
  *
  * Singleton-сервисы (Cookie, Session, Router) НЕ хранят данные запроса в свойствах:
  * они кладут их сюда, поэтому два запроса, обрабатываемые одновременно, не смешиваются.
@@ -30,56 +26,25 @@ final class RequestContext implements RequestContextContract, ScopeContract
 {
     private const string KEY = 'neo.http.context';
 
-    private ?ContextState $main = null;
+    /** Только счётчик экземпляров для уникального ключа, данных запроса здесь нет. */
+    private static int $instances = 0;
 
-    /** @var WeakMap<Fiber, ContextState> */
-    private WeakMap $fibers;
+    /** Свой ключ на каждый экземпляр: два независимых RequestContext (тесты) не видят друг друга. */
+    private readonly string $key;
 
     public function __construct()
     {
-        $this->fibers = new WeakMap();
+        $this->key = self::KEY . '#' . ++self::$instances;
     }
 
     public function enter(RequestContract $request, ResponseContract $response): void
     {
-        $state = new ContextState($request, $response);
-
-        if ($this->inSwoole()) {
-            $coroutine = \Swoole\Coroutine::getContext();
-            $coroutine[self::KEY] = $state;
-
-            return;
-        }
-
-        $fiber = Fiber::getCurrent();
-
-        if ($fiber === null) {
-            $this->main = $state;
-
-            return;
-        }
-
-        $this->fibers[$fiber] = $state;
+        Context::set($this->key, new ContextState($request, $response));
     }
 
     public function leave(): void
     {
-        if ($this->inSwoole()) {
-            $coroutine = \Swoole\Coroutine::getContext();
-            unset($coroutine[self::KEY]);
-
-            return;
-        }
-
-        $fiber = Fiber::getCurrent();
-
-        if ($fiber === null) {
-            $this->main = null;
-
-            return;
-        }
-
-        unset($this->fibers[$fiber]);
+        Context::destroy($this->key);
     }
 
     public function isEntered(): bool
@@ -147,35 +112,10 @@ final class RequestContext implements RequestContextContract, ScopeContract
 
     private function find(): ?ContextState
     {
-        if ($this->inSwoole()) {
-            $cid = \Swoole\Coroutine::getCid();
+        # Идём от текущей корутины к родителям: задача, запущенная go() внутри запроса,
+        # продолжает видеть запрос-родитель.
+        $state = Context::inherited($this->key);
 
-            # Идём от текущей корутины к родителям: задача, запущенная go() внутри запроса,
-            # продолжает видеть запрос-родитель.
-            while ($cid > 0) {
-                $context = \Swoole\Coroutine::getContext($cid);
-
-                if ($context !== null && isset($context[self::KEY])) {
-                    return $context[self::KEY];
-                }
-
-                $cid = (int) \Swoole\Coroutine::getPcid($cid);
-            }
-
-            return null;
-        }
-
-        $fiber = Fiber::getCurrent();
-
-        if ($fiber !== null && isset($this->fibers[$fiber])) {
-            return $this->fibers[$fiber];
-        }
-
-        return $this->main;
-    }
-
-    private function inSwoole(): bool
-    {
-        return class_exists(\Swoole\Coroutine::class, false) && \Swoole\Coroutine::getCid() > 0;
+        return $state instanceof ContextState ? $state : null;
     }
 }

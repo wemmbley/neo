@@ -418,6 +418,31 @@ class Chronos implements JsonSerializable, Stringable
     }
 
     /**
+     * Снимок настроек, которые приложение задаёт при запуске (локаль, начало недели, выходные).
+     * Долгоживущий воркер возвращает их после каждого запроса через {@see restore()}:
+     * так `Chronos::setLocale()` или `setTestNow()` в одном запросе не влияет на следующий.
+     *
+     * @return array{locale: string, weekStartsAt: int, weekendDays: list<int>}
+     */
+    public static function snapshot(): array
+    {
+        return [
+            'locale' => self::$defaultLocale,
+            'weekStartsAt' => self::$weekStartsAt,
+            'weekendDays' => self::$weekendDays,
+        ];
+    }
+
+    /** @param array{locale: string, weekStartsAt: int, weekendDays: list<int>} $snapshot */
+    public static function restore(array $snapshot): void
+    {
+        self::$testNow = null;
+        self::$defaultLocale = $snapshot['locale'];
+        self::$weekStartsAt = $snapshot['weekStartsAt'];
+        self::$weekendDays = $snapshot['weekendDays'];
+    }
+
+    /**
      * Сбрасывает всё статическое состояние (test-now, локаль, начало недели, выходные, макросы).
      */
     public static function resetToDefaults(): void

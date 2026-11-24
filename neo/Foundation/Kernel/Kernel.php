@@ -10,6 +10,9 @@ use Neo\Foundation\Config\Config;
 use Neo\Foundation\Kernel\Bootstrappers\ConfigBootstrapper;
 use Neo\Foundation\Kernel\Bootstrappers\ConsoleBootstrapper;
 use Neo\Foundation\Kernel\Bootstrappers\EnvBootstrapper;
+use Neo\Foundation\Runtime\Lifecycle;
+use Neo\Foundation\Runtime\Runtime;
+use Neo\Foundation\Runtime\RuntimeContract;
 
 /**
  * Это точка сборки всего семантического пространства Kernel:
@@ -116,6 +119,11 @@ final class Kernel
         #
         $container->instance(self::class, $this);
         $container->instance(ServiceContainer::class, $container);
+
+        # Рантайм и жизненный цикл воркера доступны всем провайдерам с первой секунды,
+        # без порядка регистрации. Текущий рантайм определяется на лету (sync или Swoole).
+        $container->instance(Lifecycle::class, new Lifecycle($container));
+        $container->bind(RuntimeContract::class, static fn (): RuntimeContract => Runtime::current());
 
         foreach ($providers as $provider) {
             $this->registerProvider($provider);

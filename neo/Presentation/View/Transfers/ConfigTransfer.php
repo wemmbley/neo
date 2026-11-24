@@ -22,6 +22,7 @@ use Neo\Information\Validator\Rule;
 class ConfigTransfer extends Transfer
 {
     public string $basicPath; // без значения: обязательное поле
+    public array $resources = [];
     public array $namespaces = [];
     public CacheTransfer $cache;
     public bool $debug = false;

@@ -430,6 +430,41 @@ GET /api/v1/restaurants?filters[$and][0][chef][restaurants][stars][$eq]=5&filter
 Здесь каждый элемент `$and` строит свой `whereHas`, то есть шеф должен иметь
 пятизвёздочный ресторан и (возможно, другой) итальянский ресторан.
 
+## Schema - получение схемы
+
+```http request
+GET /api/v1/posts/schema
+```
+
+Ответ:
+
+```json 
+{
+  "resource": "posts",
+  "fields": [
+    {
+      "name": "title",
+      "type": "string",
+      "sortable": true,
+      "searchable": true
+    },
+    {
+      "name": "status",
+      "type": "string"
+    }
+  ],
+  "actions": [
+    "create",
+    "update",
+    "delete"
+  ]
+}
+```
+
+Поскольку ResourceAPI планируется активно внедрять в будущую административную 
+круд-панель, необходимо предусмотреть, как именно сюда будут попадать мета-данные 
+по типу `actions`. Возможно, специализированным сервис-провайдером. 
+
 ## Полная таблица
 
 | Имя             | Условие                                                     | Тип          | Пример      |

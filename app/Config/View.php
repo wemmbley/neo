@@ -8,6 +8,15 @@ return [
     'basic_path' => base_path('src/UI/Views'),
 
     #
+    # Папка ресурсов. Нужен для хелпера resource().
+    # Хелпер является синтаксическим сахаром над base_path().
+    #
+    'resources' => [
+        'path' => base_path('src/UI/Resources'),
+        'url' => '/Resources',
+    ],
+
+    #
     # Пространство имён для разделения папок.
     #
     'namespaces' => [
@@ -22,7 +31,7 @@ return [
         #
         # Включает кэш по умолчанию. Можно подставить сразу env().
         #
-        'enabled' => env('CACHE_ENABLED', true),
+        'enabled' => env('CACHE_ENABLED', false),
 
         #
         # Эта опция кэширует ВСЕ шаблоны без исключения.
@@ -103,6 +112,7 @@ return [
             \Neo\Presentation\View\Directives\ErrorDirective::class,
             \Neo\Presentation\View\Directives\MethodDirective::class,
             \Neo\Presentation\View\Directives\CacheDirective::class,
+            \Neo\Presentation\View\Directives\DebugDirective::class,
         ],
 
         #

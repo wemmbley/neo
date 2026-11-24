@@ -7,10 +7,16 @@ use Neo\Information\Persistence\ORM\Attributes\Hidden;
 use Neo\Information\Persistence\ORM\Attributes\PrimaryKey;
 use Neo\Information\Persistence\ORM\Attributes\UseFactory;
 use Neo\Information\Persistence\ORM\Model;
+use Neo\Security\Authentication\Concerns\AuthenticatableTrait;
+use Neo\Security\Authentication\Contracts\Authenticatable;
+use Neo\Security\Authorization\Concerns\HasRoles;
+use Neo\Security\Authorization\Gate\Authorizable;
 
 #[UseFactory(UserFactory::class)]
-class User extends Model
+class User extends Model implements Authenticatable
 {
+    use AuthenticatableTrait, Authorizable, HasRoles;
+
     #[PrimaryKey]
     public int $id;
 

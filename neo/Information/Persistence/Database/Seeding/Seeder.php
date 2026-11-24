@@ -16,7 +16,7 @@ abstract class Seeder
     {
         foreach ((array) $classes as $class) {
             /** @var Seeder $seeder */
-            $seeder = function_exists('app') ? app($class) : new $class();
+            $seeder = function_exists('kernel') ? kernel($class) : new $class();
             $seeder->run();
         }
     }

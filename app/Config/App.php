@@ -30,6 +30,7 @@ return [
         \Neo\Network\Session\SessionServiceProvider::class,
         \Neo\Security\SecurityServiceProvider::class,
         \Neo\Information\Persistence\ORM\ORMServiceProvider::class,
+        \Neo\Security\AuthServiceProvider::class,
         \Neo\Information\Faker\FakerServiceProvider::class,
         \Neo\Presentation\View\ViewServiceProvider::class,
         \App\Providers\AppServiceProvider::class,

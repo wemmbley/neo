@@ -45,6 +45,7 @@ return [
             $base . '/neo/Information/Lang/Helpers.php',
             $base . '/neo/Information/Collection/Helpers.php',
             $base . '/neo/Network/Http/Helpers.php',
+            $base . '/neo/Security/Helpers.php',
             $base . '/neo/Presentation/View/Helpers.php',
         ],
     ],

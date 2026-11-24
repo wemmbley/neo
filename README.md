@@ -37,6 +37,10 @@
 - Специальный фасад для даты и времени `Chronos::`.
 - Обёртка над массивами фасадом `Collection::`
 
+## 📬📭Messaging
+- Jobs, Queue, Notifications, Publish-Subscriber.
+- Отправка писем на почту через фасад `Email::`
+
 ## 🗺️🌐Network
 - Маршрутизатор HTTP-запросов `Route::`
 - Middleware, Request, Response, Controller.

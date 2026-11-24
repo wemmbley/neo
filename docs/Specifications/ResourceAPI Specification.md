@@ -56,6 +56,17 @@ class PostResourceAPI extends ResourceAPI
 Имя ресурса строится из имени класса: `PostResourceAPI` → модель `Post`,
 имя в URL `posts` (множественное число, snake_case). Можно переопределить через `$name`.
 
+Альтернативный способ обьявления:
+```php 
+ResourceAPI::make(Post::class)
+    ->fields(['id', 'name', 'email'])
+    ->filterable(['name', 'email'])
+    ->sortable(['id', 'name'])
+    ->searchable(['name', 'email'])
+    ->actions([])
+    ->paginate(20);
+```
+
 #### Запрос на URL
 
 Мы получим автоматически следующие роуты (при дефолтных `$actions` только первые три):
@@ -460,10 +471,6 @@ GET /api/v1/posts/schema
   ]
 }
 ```
-
-Поскольку ResourceAPI планируется активно внедрять в будущую административную 
-круд-панель, необходимо предусмотреть, как именно сюда будут попадать мета-данные 
-по типу `actions`. Возможно, специализированным сервис-провайдером. 
 
 ## Полная таблица
 

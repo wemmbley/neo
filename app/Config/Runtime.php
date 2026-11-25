@@ -10,6 +10,13 @@ return [
 
     'swoole' => [
 
+        # process: master раздаёт соединения воркерам (нужен для task workers).
+        # base:    воркеры сами принимают соединения: меньше накладных расходов на коротких запросах.
+        'mode' => env('SWOOLE_MODE', 'process'),
+
+        # Очередь ожидающих соединений.
+        'backlog' => (int) env('SWOOLE_BACKLOG', 2048),
+
         # Число воркеров. null = число ядер процессора (опция --workers перекрывает).
         'workers' => env('SWOOLE_WORKERS'),
 

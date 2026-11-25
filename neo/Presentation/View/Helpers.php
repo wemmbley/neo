@@ -10,7 +10,8 @@ if (! function_exists('view')) {
 if (! function_exists('resource')) {
     function resource(string $path): string
     {
-        $url = config('view.resources_url');
+
+        $url = (string) (config('view::resources.url') ?? '');
 
         return rtrim($url, '/') . '/' . ltrim($path, '/');
     }

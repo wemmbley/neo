@@ -24,9 +24,9 @@ return [
             'database' => env('DB_DATABASE', base_path('app/Database/Database.sqlite')),
             'prefix' => '',
             'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
-            'busy_timeout' => null,
-            'journal_mode' => null,
-            'synchronous' => null,
+            'busy_timeout' => (int) env('DB_BUSY_TIMEOUT', 5000), # мс ожидания блокировки вместо «database is locked»
+            'journal_mode' => env('DB_JOURNAL_MODE', 'WAL'),   # читатели не мешают писателю, нет fsync на каждый запрос
+            'synchronous' => env('DB_SYNCHRONOUS', 'NORMAL'), # безопасно вместе с WAL
             'transaction_mode' => 'DEFERRED',
             'timezone' => '+00:00',
         ],

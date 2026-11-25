@@ -35,6 +35,14 @@ return [
     'table' => env('SESSION_TABLE', 'sessions'),
 
     #
+    # Экономия записей в хранилище (важно для sqlite и долгоживущих серверов).
+    # touch_interval: 0 = писать сессию на каждый запрос; N = не чаще раза в N секунд, пока данные не менялись.
+    # lazy: новая сессия без данных (просто просмотр страницы) не сохраняется и куку не выдаёт.
+    #
+    'touch_interval' => (int) env('SESSION_TOUCH_INTERVAL', 60),
+    'lazy' => env('SESSION_LAZY', true),
+
+    #
     # Session Sweeping Lottery
     #
     'lottery' => [2, 100],

@@ -49,6 +49,9 @@ class Renderer
     /** @var array<string, string> */
     private array $located = [];
 
+    /** @var array<string, array{0: int, 1: string}> источник => [mtime, путь к скомпилированному файлу] при выключенном кэше */
+    private array $compiledInMemory = [];
+
     /** @var list<string> стек путей выполняемых шаблонов (для @once «по месту»). */
     private array $sources = [];
 
@@ -436,10 +439,25 @@ class Renderer
         $cache = $this->config->cache;
 
         if (!$cache->enabled) {
-            $path = sys_get_temp_dir() . '/neo-view-' . bin2hex(random_bytes(8)) . '.php';
+            # Кэш выключен: шаблон всё равно компилируется один раз на процесс (и заново при изменении файла),
+            # а не на каждый запрос с записью временного файла и пересборкой opcache.
+            $mtime = (int) @filemtime($source);
+            $known = $this->compiledInMemory[$source] ?? null;
+
+            if ($known !== null && $known[0] === $mtime && is_file($known[1])) {
+                return [$known[1], false];
+            }
+
+            $path = sys_get_temp_dir() . '/neo-view-' . sha1($source . '|' . $mtime . '|' . getmypid()) . '.php';
             $this->writeAtomic($path, $this->compiler->compile($this->read($source)));
 
-            return [$path, true];
+            if ($known !== null && $known[1] !== $path) {
+                @unlink($known[1]);
+            }
+
+            $this->compiledInMemory[$source] = [$mtime, $path];
+
+            return [$path, false];
         }
 
         $path = $this->cacheDir('compiled') . '/' . sha1($source) . '.php';

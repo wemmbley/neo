@@ -93,6 +93,14 @@ class Bootstrap
             return;
         }
 
+        #
+        # `php cli validate` сам проверяет requires и выводит все проблемы списком,
+        # поэтому ему нельзя падать на первой же недостающей зависимости.
+        #
+        if (PHP_SAPI === 'cli' && ($_SERVER['argv'][1] ?? null) === 'validate') {
+            return;
+        }
+
         require_once $this->config['autoload']['requirements'];
 
         Requirements::check($this->config['requires']);

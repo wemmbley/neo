@@ -6,6 +6,7 @@ namespace Neo\Network\Http\Console;
 
 use Neo\Foundation\Console\Commands\Command;
 use Neo\Foundation\Runtime\Lifecycle;
+use Neo\Foundation\Runtime\Swoole\SwooleApi;
 use Neo\Network\Http\HttpKernel;
 use Neo\Network\Http\Server\SwooleServer;
 
@@ -17,7 +18,7 @@ use Neo\Network\Http\Server\SwooleServer;
  */
 class ServeCommand extends Command
 {
-    protected string $signature = 'serve {--host=127.0.0.1 : Адрес} {--port=8000 : Порт} {--workers=4 : Число рабочих процессов} {--swoole : Использовать Swoole или OpenSwoole}';
+    protected string $signature = 'serve {--host=127.0.0.1 : Адрес} {--port=8000 : Порт} {--workers= : Число рабочих процессов (по умолчанию SWOOLE_WORKERS, иначе число ядер CPU)} {--swoole : Использовать Swoole или OpenSwoole}';
 
     protected string $description = 'Запускает HTTP-сервер для разработки';
 
@@ -25,7 +26,6 @@ class ServeCommand extends Command
     {
         $host = (string) $this->option('host');
         $port = (int) $this->option('port');
-        $workers = max(1, (int) $this->option('workers'));
 
         if ($this->option('swoole')) {
             if (!extension_loaded('swoole') && !extension_loaded('openswoole')) {
@@ -34,19 +34,33 @@ class ServeCommand extends Command
                 return self::FAILURE;
             }
 
-            $this->info("Swoole: http://{$host}:{$port} (workers: {$workers})");
-
             $options = [
                 ...array_filter((array) config('runtime.swoole', []), static fn (mixed $value): bool => $value !== null),
                 'host' => $host,
                 'port' => $port,
-                'workers' => $workers,
             ];
+
+            # Приоритет: опция --workers, затем SWOOLE_WORKERS (runtime.swoole.workers), затем число ядер CPU.
+            $requested = $this->option('workers');
+
+            if ($requested !== null && $requested !== '') {
+                $options['workers'] = max(1, (int) $requested);
+            } elseif (isset($options['workers'])) {
+                $options['workers'] = max(1, (int) $options['workers']);
+            } else {
+                unset($options['workers']);
+            }
+
+            $workers = $options['workers'] ?? SwooleApi::cpuNum();
+
+            $this->info("Swoole: http://{$host}:{$port} (workers: {$workers}, mode: " . ($options['mode'] ?? 'process') . ')');
 
             (new SwooleServer(kernel(HttpKernel::class), $options, kernel(Lifecycle::class)))->start();
 
             return self::SUCCESS;
         }
+
+        $workers = max(1, (int) ($this->option('workers') ?: config('runtime.swoole.workers') ?: 4));
 
         $public = base_path('public');
 

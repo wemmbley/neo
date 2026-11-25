@@ -181,3 +181,82 @@ test('Session replaces an unknown client-supplied session identifier', function 
 
     expect($session->getId())->not->toBe($unknown);
 });
+
+/** Менеджер с настройками экономии записей и счётчиком обращений к драйверу. */
+function session_saving_manager(array $config, ?ArraySessionDriver $driver = null, array $cookies = []): array
+{
+    $context = new FiberRequestContext();
+    $response = new ArrayResponse();
+    $context->enter(new ArrayRequest($cookies), $response);
+    $driver ??= new ArraySessionDriver();
+    $counting = new class($driver) implements \Neo\Network\Session\Contracts\SessionDriverContract {
+        public int $writes = 0;
+
+        public function __construct(private readonly ArraySessionDriver $inner) {}
+
+        public function read(string $id): ?array { return $this->inner->read($id); }
+
+        public function write(string $id, array $data, int $lastActivity): void { $this->writes++; $this->inner->write($id, $data, $lastActivity); }
+
+        public function destroy(string $id): void { $this->inner->destroy($id); }
+
+        public function gc(int $lifetime): int { return 0; }
+    };
+
+    $manager = new SessionManager(
+        ['cookie' => 'neo_session', 'lifetime' => 120, 'lottery' => [0, 100], ...$config],
+        $counting,
+        new CookieManager(['path' => '/', 'http_only' => true], $context),
+        $context,
+    );
+
+    return [$manager, $counting, $response, $driver];
+}
+
+test('Lazy session without data is neither stored nor given a cookie', function () {
+    [$session, $driver, $response] = session_saving_manager(['lazy' => true]);
+    $session->put('_previous.url', 'http://localhost/');
+    $session->save();
+
+    expect($driver->writes)->toBe(0)->and($response->cookie('neo_session'))->toBeNull();
+});
+
+test('Lazy session with real data is stored', function () {
+    [$session, $driver, $response] = session_saving_manager(['lazy' => true]);
+    $session->put('user_id', 5);
+    $session->save();
+
+    expect($driver->writes)->toBe(1)->and($response->cookie('neo_session'))->not->toBeNull();
+});
+
+test('Unchanged existing session is not rewritten within touch_interval', function () {
+    [$first, $counting, , $storage] = session_saving_manager(['touch_interval' => 60]);
+    $first->put('user_id', 9);
+    $first->save();
+    $id = $first->getId();
+
+    expect($counting->writes)->toBe(1);
+
+    [$second, $again] = session_saving_manager(['touch_interval' => 60], $storage, ['neo_session' => $id]);
+    $second->save();
+
+    expect($again->writes)->toBe(0);
+
+    [$third, $changed] = session_saving_manager(['touch_interval' => 60], $storage, ['neo_session' => $id]);
+    $third->put('user_id', 10);
+    $third->save();
+
+    expect($changed->writes)->toBe(1)->and($storage->read($id))->toHaveKey('user_id', 10);
+});
+
+test('Default settings keep writing the session on every save', function () {
+    [$first, $counting, , $storage] = session_saving_manager([]);
+    $first->put('a', 1);
+    $first->save();
+    $id = $first->getId();
+
+    [$second, $again] = session_saving_manager([], $storage, ['neo_session' => $id]);
+    $second->save();
+
+    expect($counting->writes)->toBe(1)->and($again->writes)->toBe(1);
+});

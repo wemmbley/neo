@@ -170,3 +170,25 @@ test('Pool prune closes idle resources above min', function () {
 
     expect($pool->prune())->toBe(1)->and($pool->stats()['total'])->toBe(1);
 });
+
+test('Pool close destroys idle resources without touching the channel', function () {
+    $destroyed = 0;
+    $pool = new Pool(
+        factory: fn () => new stdClass(),
+        options: new PoolOptions(max: 3),
+        runtime: new SyncRuntime(),
+        destroy: function () use (&$destroyed) { $destroyed++; },
+    );
+
+    $a = $pool->acquire();
+    $b = $pool->acquire();
+    $pool->release($a);
+
+    $pool->close();
+    $pool->close(); # повторное закрытие безопасно
+
+    expect($destroyed)->toBe(1);
+
+    $pool->release($b); # выданный до close() ресурс закрывается при возврате
+    expect($destroyed)->toBe(2)->and($pool->stats()['total'])->toBe(0);
+});

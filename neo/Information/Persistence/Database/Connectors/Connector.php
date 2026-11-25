@@ -37,6 +37,12 @@ final class Connector
         $path = (string) ($c['database'] ?? ':memory:');
 
         if ($path !== ':memory:' && !str_starts_with($path, 'file:')) {
+            # Относительный путь (DB_DATABASE=app/Database/Database.sqlite) считается от корня проекта,
+            # а не от текущей папки процесса: у php-fpm, Swoole и cron она разная.
+            if (!str_starts_with($path, '/') && !str_starts_with($path, '\\') && preg_match('~^[A-Za-z]:[\\\\/]~', $path) !== 1) {
+                $path = base_path($path);
+            }
+
             $dir = dirname($path);
 
             if (!is_dir($dir) && !mkdir($dir, 0775, true) && !is_dir($dir)) {

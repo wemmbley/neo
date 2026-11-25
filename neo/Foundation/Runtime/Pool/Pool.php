@@ -24,6 +24,9 @@ final class Pool implements PoolContract
 {
     private readonly ChannelContract $slots;
 
+    /** @var list<PoolEntry> все слоты пула: close() обходит их напрямую, без Channel::pop() (вне корутины он недоступен). */
+    private array $entries = [];
+
     /** @var array<int, PoolEntry> выданные ресурсы по spl_object_id */
     private array $leased = [];
 
@@ -48,7 +51,9 @@ final class Pool implements PoolContract
         $this->slots = $runtime->channel($options->max);
 
         for ($i = 0; $i < $options->max; $i++) {
-            $this->slots->push(new PoolEntry());
+            $entry = new PoolEntry();
+            $this->entries[] = $entry;
+            $this->slots->push($entry);
         }
     }
 
@@ -179,24 +184,46 @@ final class Pool implements PoolContract
         });
     }
 
+    /**
+     * Закрывает пул. Работает и вне корутины (Swoole вызывает остановку воркера уже без цикла событий),
+     * поэтому слоты не вынимаются из канала: свободные ресурсы уничтожаются прямо по реестру слотов.
+     * Выданные ресурсы закроются при release() (closed = true).
+     */
     public function close(): void
     {
+        if ($this->closed) {
+            return;
+        }
+
         $this->closed = true;
 
         if ($this->reaper !== 0) {
-            $this->runtime->clearTick($this->reaper);
+            try {
+                $this->runtime->clearTick($this->reaper);
+            } catch (Throwable) {
+                # Таймер уже снят вместе с циклом событий.
+            }
+
             $this->reaper = 0;
         }
 
-        for ($i = $this->slots->length(); $i > 0; $i--) {
-            $entry = $this->slots->pop(0.001);
+        $leased = [];
 
-            if ($entry instanceof PoolEntry) {
+        foreach ($this->leased as $entry) {
+            $leased[spl_object_id($entry)] = true;
+        }
+
+        foreach ($this->entries as $entry) {
+            if (!isset($leased[spl_object_id($entry)])) {
                 $this->destroyResource($entry);
             }
         }
 
-        $this->slots->close();
+        try {
+            $this->slots->close();
+        } catch (Throwable) {
+            # Канал мог быть закрыт вместе с циклом событий.
+        }
     }
 
     public function stats(): array

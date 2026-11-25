@@ -49,8 +49,11 @@ final class SwooleServer implements ServerContract
 {
     private ?object $server = null;
 
+    /** Воркер уже остановлен (workerExit и workerStop могут прийти оба). */
+    private bool $stopped = false;
+
     /**
-     * @param array{host?: string, port?: int, workers?: int, max_request?: int, max_wait_time?: int, request_timeout?: float|int, task_workers?: int, task_max_request?: int, hook_flags?: int|null, ssl_cert?: string, ssl_key?: string} $options
+     * @param array{host?: string, port?: int, workers?: int, max_request?: int, max_wait_time?: int, request_timeout?: float|int, task_workers?: int, task_max_request?: int, mode?: string, backlog?: int, hook_flags?: int|null, ssl_cert?: string, ssl_key?: string} $options
      */
     public function __construct(
         private readonly HttpKernel $http,
@@ -71,13 +74,15 @@ final class SwooleServer implements ServerContract
         $this->server = new $class(
             $this->options['host'] ?? '127.0.0.1',
             (int) ($this->options['port'] ?? 8000),
-            SwooleApi::constant('PROCESS'),
+            $this->mode(),
             $ssl ? SwooleApi::constant('SOCK_TCP') | SwooleApi::constant('SSL') : SwooleApi::constant('SOCK_TCP'),
         );
 
         $this->server->set($this->settings($ssl));
 
         $this->server->on('workerStart', fn (object $server, int $workerId) => $this->workerStart());
+        # workerExit приходит, пока цикл событий ещё жив (reload_async); workerStop приходит после него, уже без корутин.
+        $this->server->on('workerExit', fn (object $server, int $workerId) => $this->workerStop());
         $this->server->on('workerStop', fn (object $server, int $workerId) => $this->workerStop());
         $this->server->on('request', fn (object $request, object $response) => $this->handle($request, $response, $ssl));
 
@@ -104,6 +109,11 @@ final class SwooleServer implements ServerContract
             'hook_flags' => $this->options['hook_flags'] ?? self::safeHookFlags(),
             'http_compression' => false,
             'package_max_length' => 16 * 1024 * 1024,
+
+            # Без задержки Nagle маленькие HTTP-ответы уходят сразу, а не ждут до 40 мс.
+            'open_tcp_nodelay' => true,
+            'backlog' => (int) ($this->options['backlog'] ?? 2048),
+            'log_level' => SwooleApi::constant('LOG_WARNING'),
 
             # Graceful: при остановке и перезапуске воркер дорабатывает текущие запросы.
             'reload_async' => true,
@@ -143,6 +153,18 @@ final class SwooleServer implements ServerContract
         return $flags;
     }
 
+    /**
+     * process: master раздаёт соединения воркерам (по умолчанию, поддерживает task workers).
+     * base:    воркеры сами принимают соединения (reuse_port), нет передачи между процессами:
+     *          на коротких запросах это заметно быстрее. С task workers недоступен.
+     */
+    private function mode(): int
+    {
+        $base = strtolower((string) ($this->options['mode'] ?? 'process')) === 'base' && $this->taskWorkers() === 0;
+
+        return SwooleApi::constant($base ? 'BASE' : 'PROCESS');
+    }
+
     private function taskWorkers(): int
     {
         return max(0, (int) ($this->options['task_workers'] ?? 0));
@@ -161,7 +183,25 @@ final class SwooleServer implements ServerContract
 
     private function workerStop(): void
     {
-        $this->lifecycle?->workerStop();
+        if ($this->stopped) {
+            return;
+        }
+
+        $this->stopped = true;
+
+        $stop = function (): void {
+            try {
+                $this->lifecycle?->workerStop();
+            } catch (Throwable $e) {
+                error_log('[swoole] worker stop failed: ' . $e::class . ': ' . $e->getMessage());
+            }
+        };
+
+        # Закрытие пулов не должно зависеть от корутины: если она есть, работаем в ней, иначе пробуем создать,
+        # а при неудаче закрываем напрямую (Pool::close() каналы не использует).
+        if (SwooleApi::inCoroutine() || SwooleApi::create($stop) === 0) {
+            $stop();
+        }
     }
 
     private function handle(object $swooleRequest, object $swooleResponse, bool $ssl): void

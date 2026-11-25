@@ -136,11 +136,44 @@ final class SessionManager
     public function save(): void
     {
         $state = $this->state();
+        $flashNew = $state['data']['_flash']['new'] ?? [];
+
         foreach (($state['data']['_flash']['old'] ?? []) as $key) {
             $this->forgetPath($state['data'], (string) $key);
         }
-        $state['data']['_flash']['old'] = $state['data']['_flash']['new'] ?? [];
+
+        $state['data']['_flash']['old'] = $flashNew;
         $state['data']['_flash']['new'] = [];
+
+        # Лишние записи в хранилище: на каждый запрос это самый дорогой шаг сессии.
+        #   touch_interval  0 = писать всегда (по умолчанию); N = не чаще раза в N секунд, если данные не менялись
+        #   lazy            true = новая сессия без данных не сохраняется и кука не выдаётся
+        $interval = (int) ($this->config['touch_interval'] ?? 0);
+        $existing = (bool) ($state['existing'] ?? false);
+
+        if (!$existing && (bool) ($this->config['lazy'] ?? false) && !$this->hasPayload($state['data'], $flashNew)) {
+            $this->context->set(self::CONTEXT_KEY, $state);
+
+            return;
+        }
+
+        if ($interval > 0) {
+            if (time() - (int) ($state['data']['_touched'] ?? 0) >= $interval) {
+                $state['data']['_touched'] = time();
+            }
+
+            $unchanged = $existing
+                && ($state['loadedId'] ?? $state['id']) === $state['id']
+                && ($state['hash'] ?? null) === md5(serialize($state['data']));
+
+            if ($unchanged) {
+                $state['dirty'] = false;
+                $this->context->set(self::CONTEXT_KEY, $state);
+
+                return;
+            }
+        }
+
         $this->driver->write($state['id'], $this->encodeData($state['data']), time());
         $lottery = (array) ($this->config['lottery'] ?? [2, 100]);
         $chance = (int) ($lottery[0] ?? 0);
@@ -154,7 +187,16 @@ final class SessionManager
             'same_site' => $this->config['same_site'] ?? 'lax', 'partitioned' => $this->config['partitioned'] ?? false,
         ]);
         $state['dirty'] = false;
+        $state['existing'] = true;
+        $state['loadedId'] = $state['id'];
+        $state['hash'] = md5(serialize($state['data']));
         $this->context->set(self::CONTEXT_KEY, $state);
+    }
+
+    /** Есть ли в данных что-то кроме служебных ключей (_flash, _previous, _touched). */
+    private function hasPayload(array $data, array $flashNew): bool
+    {
+        return $flashNew !== [] || array_diff_key($data, ['_flash' => 1, '_previous' => 1, '_touched' => 1]) !== [];
     }
 
     public function regenerate(bool $destroy = false): bool
@@ -199,7 +241,14 @@ final class SessionManager
         $id = $stored === null ? bin2hex(random_bytes(40)) : $candidate;
         $data = $this->decodeData($stored ?? []);
         $data['_flash'] ??= ['new' => [], 'old' => []];
-        $state = ['id' => $id, 'data' => $data, 'dirty' => false];
+        $state = [
+            'id' => $id,
+            'data' => $data,
+            'dirty' => false,
+            'existing' => $stored !== null,
+            'loadedId' => $id,
+            'hash' => md5(serialize($data)),
+        ];
         $this->context->set(self::CONTEXT_KEY, $state);
         return $state;
     }

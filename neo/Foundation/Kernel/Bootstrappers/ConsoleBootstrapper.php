@@ -13,6 +13,7 @@ use Neo\Foundation\Kernel\BootstrapperContract;
 use Neo\Foundation\Kernel\Commands\ConfigShowCommand;
 use Neo\Foundation\Kernel\Commands\EnvSetCommand;
 use Neo\Foundation\Kernel\Commands\ProvidersCommand;
+use Neo\Foundation\Kernel\Commands\ValidateCommand;
 use Neo\Foundation\Kernel\Kernel;
 use Neo\Foundation\Kernel\ServiceContainer;
 
@@ -31,6 +32,7 @@ final class ConsoleBootstrapper implements BootstrapperContract
         ConfigShowCommand::class,
         EnvSetCommand::class,
         ProvidersCommand::class,
+        ValidateCommand::class,
         RunTestsCommand::class,
     ];
 

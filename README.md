@@ -76,6 +76,7 @@
 - Jobs, Queue, Notifications, Publish-Subscriber.
 - Отправка писем на почту через фасад `Mail::`
 - Репортинг логов в разные каналы: file, Telegram.
+- Scheduler, Broadcasting
 
 # Готовые системы 
 
@@ -109,3 +110,6 @@
 
 ## Профайлер
 <img src="./docs/Images/Profiler.png">
+
+## Performance 
+<img src="./docs/Images/Performance.png">

@@ -8,3 +8,4 @@ siteinfo.txt
 public/.user.ini
 app/Database/Database.sqlite-shm
 app/Database/Database.sqlite-wal
+app/Database/Database.sqlite

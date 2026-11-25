@@ -37,6 +37,7 @@ return [
         \Neo\Network\Session\SessionServiceProvider::class,
         \Neo\Security\SecurityServiceProvider::class,
         \Neo\Information\Persistence\ORM\ORMServiceProvider::class,
+        \Neo\Network\ResourceAPI\ResourceAPIServiceProvider::class,
         \Neo\Information\Faker\FakerServiceProvider::class,
         \Neo\Information\Datetime\DatetimeServiceProvider::class,
         \Neo\Presentation\View\ViewServiceProvider::class,

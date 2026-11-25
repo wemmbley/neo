@@ -30,6 +30,24 @@ class Builder
         $this->eagerLoad = $model->getWith();
     }
 
+    /** @var array<string, Closure> расширения запроса: `Builder::macro('filter', fn (array $params) => ...)` */
+    private static array $macros = [];
+
+    /**
+     * Добавляет метод всем запросам моделей. Замыкание получает $this = Builder, поэтому внутри
+     * доступны getModel(), toBase() и цепочки. Так модули (ResourceAPI: `Post::filter($params)`)
+     * расширяют ORM, не вшиваясь в неё.
+     */
+    public static function macro(string $name, Closure $macro): void
+    {
+        self::$macros[$name] = $macro;
+    }
+
+    public static function hasMacro(string $name): bool
+    {
+        return isset(self::$macros[$name]);
+    }
+
     public static function usePaginators(string $lengthAware, string $simple): void
     {
         self::$lengthAwarePaginator = $lengthAware;
@@ -225,6 +243,10 @@ class Builder
 
     public function __call(string $method, array $args): mixed
     {
+        if (isset(self::$macros[$method])) {
+            return (self::$macros[$method])->call($this, ...$args);
+        }
+
         $result = $this->query->{$method}(...$args);
 
         return $result instanceof QueryBuilder ? $this : $result;

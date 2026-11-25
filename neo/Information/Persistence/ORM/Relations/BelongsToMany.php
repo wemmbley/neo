@@ -47,6 +47,18 @@ class BelongsToMany extends ManyRelation
         return [$this->foreignPivotKey(), $this->relatedPivotKey(), ...$this->def->pivotColumns];
     }
 
+    public function linkage(): array
+    {
+        return [
+            'type' => 'pivot',
+            'parent' => $this->parent->getKeyName(),
+            'related' => $this->related->getKeyName(),
+            'pivot' => $this->pivotTable(),
+            'pivot_parent' => $this->foreignPivotKey(),
+            'pivot_related' => $this->relatedPivotKey(),
+        ];
+    }
+
     protected function baseQuery(): void
     {
         $pivot = $this->pivotTable();

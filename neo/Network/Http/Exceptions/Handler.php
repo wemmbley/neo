@@ -43,10 +43,13 @@ class Handler implements ExceptionHandlerContract
 
     public function __construct(protected readonly ServiceContainer $container) {}
 
-    /** Свой рендер для типа исключения: замыкание вида `fn (MyException $e, Request $r) => response()->json(...)`. */
-    public function renderable(Closure $renderer): static
+    /**
+     * Свой рендер для типа исключения: замыкание вида `fn (MyException $e, Request $r) => response()->json(...)`.
+     * Рендеры опрашиваются по порядку, побеждает первый вернувший Response; $first ставит рендер в начало очереди.
+     */
+    public function renderable(Closure $renderer, bool $first = false): static
     {
-        $this->renderers[] = $renderer;
+        $first ? array_unshift($this->renderers, $renderer) : $this->renderers[] = $renderer;
 
         return $this;
     }

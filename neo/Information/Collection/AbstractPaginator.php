@@ -45,17 +45,46 @@ abstract class AbstractPaginator implements ArrayAccess, Countable, IteratorAggr
         static::$currentPathResolver = $resolver;
     }
 
+    /**
+     * Номер текущей страницы из запроса. Основной формат `?page[number]=2&page[size]=15`
+     * (как в ResourceAPI); для совместимости понимается и плоский `?page=2`.
+     */
     public static function resolveCurrentPage(string $pageName = 'page', int $default = 1): int
     {
-        $page = static::$currentPageResolver
-            ? (static::$currentPageResolver)($pageName)
-            : ($_GET[$pageName] ?? null);
+        $page = static::pageParameter($pageName);
+
+        if (is_array($page)) {
+            $page = $page['number'] ?? null;
+        }
 
         if (filter_var($page, FILTER_VALIDATE_INT) !== false && (int) $page >= 1) {
             return (int) $page;
         }
 
         return $default;
+    }
+
+    /**
+     * Размер страницы из запроса (`?page[size]=15`). Не задан или некорректен: $default.
+     * Верхнюю границу контролирует тот, кто принимает запрос (ResourceAPI: pagination.max_per_page).
+     */
+    public static function resolvePerPage(string $pageName = 'page', int $default = 15): int
+    {
+        $page = static::pageParameter($pageName);
+        $size = is_array($page) ? ($page['size'] ?? null) : null;
+
+        if (filter_var($size, FILTER_VALIDATE_INT) !== false && (int) $size >= 1) {
+            return (int) $size;
+        }
+
+        return $default;
+    }
+
+    protected static function pageParameter(string $pageName): mixed
+    {
+        return static::$currentPageResolver
+            ? (static::$currentPageResolver)($pageName)
+            : ($_GET[$pageName] ?? null);
     }
 
     public static function currentPageResolver(Closure $resolver): void
@@ -112,15 +141,22 @@ abstract class AbstractPaginator implements ArrayAccess, Countable, IteratorAggr
             $page = 1;
         }
 
-        $parameters = [$this->pageName => $page];
+        $parameters = [$this->pageName => ['number' => $page, 'size' => $this->perPage]];
 
         if (count($this->query) > 0) {
             $parameters = array_merge($this->query, $parameters);
         }
 
+        # Скобки оставляем читаемыми: page[number]=2, а не page%5Bnumber%5D=2.
+        $query = str_replace(
+            ['%5B', '%5D'],
+            ['[', ']'],
+            http_build_query($parameters, '', '&', PHP_QUERY_RFC3986),
+        );
+
         return $this->path
             .(str_contains($this->path, '?') ? '&' : '?')
-            .http_build_query($parameters, '', '&', PHP_QUERY_RFC3986)
+            .$query
             .$this->buildFragment();
     }
 
@@ -290,7 +326,43 @@ abstract class AbstractPaginator implements ArrayAccess, Countable, IteratorAggr
 
     // -------------------------------------------------------------- conversions
 
-    abstract public function toArray(): array;
+    /** Ссылки пагинатора: first, prev, next (и last, если известно общее число страниц). */
+    abstract public function links(): array;
+
+    /** Счётчики страниц: current_page, per_page (и last_page, total, если известны). */
+    abstract public function pages(): array;
+
+    /** Диапазон записей текущей страницы. */
+    public function rows(): array
+    {
+        return ['from' => $this->firstItem(), 'to' => $this->lastItem()];
+    }
+
+    /** Блок `paginator` ответа: `links` + `meta` (path, rows, pages). */
+    public function paginator(): array
+    {
+        return [
+            'links' => $this->links(),
+            'meta' => [
+                'path' => $this->path(),
+                'rows' => $this->rows(),
+                'pages' => $this->pages(),
+            ],
+        ];
+    }
+
+    /**
+     * Единый формат (совпадает с ResourceAPI): записи в `data`, всё остальное в `paginator`.
+     *
+     *   { "data": [...], "paginator": { "links": {...}, "meta": { "path", "rows", "pages" } } }
+     */
+    public function toArray(): array
+    {
+        return [
+            'data' => $this->items->toArray(),
+            'paginator' => $this->paginator(),
+        ];
+    }
 
     public function jsonSerialize(): array
     {

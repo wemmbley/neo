@@ -25,6 +25,11 @@ class BelongsTo extends OneRelation
         return $this->def->ownerKey ?? $this->related->getKeyName();
     }
 
+    public function linkage(): array
+    {
+        return ['type' => 'belongs_to', 'parent' => $this->foreignKey(), 'related' => $this->ownerKey()];
+    }
+
     protected function addConstraints(): void
     {
         $this->whereParent(

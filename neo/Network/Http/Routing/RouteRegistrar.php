@@ -59,8 +59,12 @@ class RouteRegistrar
         return $this;
     }
 
-    /** @param array<string, mixed> $options */
-    public function resource(string $name, string $controller, array $options = []): PendingResourceRegistration
+    /**
+     * @param string|\Neo\Network\Http\Contracts\RoutableResource $name
+     * @param string|array<string, mixed>|null $controller
+     * @param array<string, mixed> $options
+     */
+    public function resource(string|\Neo\Network\Http\Contracts\RoutableResource $name, string|array|null $controller = null, array $options = []): mixed
     {
         return $this->withinGroup(fn () => $this->router->resource($name, $controller, $options));
     }
@@ -73,7 +77,7 @@ class RouteRegistrar
 
     public function __call(string $method, array $parameters): mixed
     {
-        if (in_array($method, self::VERBS, true)) {
+        if (in_array($method, self::VERBS, true) || $this->router->hasMacro($method)) {
             return $this->withinGroup(fn () => $this->router->{$method}(...$parameters));
         }
 
@@ -100,6 +104,11 @@ class RouteRegistrar
                 $result->register();
             }
         });
+
+        # Самоописывающийся ресурс регистрируется позже (после ->name() и т.п.), но в этой же группе.
+        if ($result instanceof PendingRoutableResource) {
+            $result->inGroup($this->attributes);
+        }
 
         return $result;
     }

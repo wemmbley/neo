@@ -1594,8 +1594,8 @@ class Collection implements ArrayAccess, Countable, IteratorAggregate, JsonSeria
      */
     public function paginate(?int $perPage = 15, ?int $page = null, array $options = []): LengthAwarePaginator
     {
-        $perPage = $perPage ?: 15;
         $pageName = $options['pageName'] ?? 'page';
+        $perPage = $perPage ?: AbstractPaginator::resolvePerPage($pageName);
         $page = $page ?: AbstractPaginator::resolveCurrentPage($pageName);
         $options['path'] ??= AbstractPaginator::resolveCurrentPath();
 
@@ -1610,8 +1610,8 @@ class Collection implements ArrayAccess, Countable, IteratorAggregate, JsonSeria
 
     public function simplePaginate(?int $perPage = 15, ?int $page = null, array $options = []): Paginator
     {
-        $perPage = $perPage ?: 15;
         $pageName = $options['pageName'] ?? 'page';
+        $perPage = $perPage ?: AbstractPaginator::resolvePerPage($pageName);
         $page = $page ?: AbstractPaginator::resolveCurrentPage($pageName);
         $options['path'] ??= AbstractPaginator::resolveCurrentPath();
 

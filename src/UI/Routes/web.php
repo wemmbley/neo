@@ -7,3 +7,4 @@ use Neo\Network\Http\Facades\Route;
 # Маршруты сайта. Группа middleware «web» (куки, сессия, CSRF) подключена в app/Config/Http.php.
 
 Route::get('/', fn () => view('home'));
+Route::documentation('/docs/api');

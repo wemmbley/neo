@@ -15,6 +15,18 @@ trait MatchesByForeignKey
         return $this->def->foreignKey ?? Str::snake(Str::basename($this->parent::class)) . '_id';
     }
 
+    public function linkage(): array
+    {
+        $meta = $this->parent::metadata();
+        $local = $this->def->localKey ?? $meta->primaryProperty;
+
+        return [
+            'type' => 'has',
+            'parent' => isset($meta->fields[$local]) ? $meta->fields[$local]->column : $local,
+            'related' => $this->foreignKey(),
+        ];
+    }
+
     private function localValue(Model $parent): mixed
     {
         return $parent->getAttribute($this->def->localKey ?? $parent::metadata()->primaryProperty);

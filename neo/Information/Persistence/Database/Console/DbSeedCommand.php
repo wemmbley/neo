@@ -23,7 +23,7 @@ class DbSeedCommand extends Command
         }
 
         /** @var Seeder $seeder */
-        $seeder = app($class);
+        $seeder = kernel($class);
         $seeder->run();
 
         $this->info("Seeded: {$class}");

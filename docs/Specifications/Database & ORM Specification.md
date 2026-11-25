@@ -211,7 +211,7 @@ final class DatabaseSeeder extends Seeder
 }
 ```
 
-`Seeder::call(classes)` создаёт сидеры через контейнер (`app()`), если он есть. `db:seed` берёт класс из `--class=` или из `database.seeder`; `make:seeder Name` создаёт заготовку; `migrate:fresh --seed` запускает сидер после миграций.
+`Seeder::call(classes)` создаёт сидеры через контейнер (`kernel()`), если он есть. `db:seed` берёт класс из `--class=` или из `database.seeder`; `make:seeder Name` создаёт заготовку; `migrate:fresh --seed` запускает сидер после миграций.
 
 ## Декларативные миграции и Schema::extend
 

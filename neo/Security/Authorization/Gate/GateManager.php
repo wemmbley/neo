@@ -132,6 +132,17 @@ final class GateManager
         return $abilities !== [];
     }
 
+    /**
+     * Есть ли у модели политика (явная, #[UsePolicy] или по соглашению об имени).
+     * Модули, которые защищают модель через Gate (ResourceAPI), без политики не вмешиваются.
+     *
+     * @param class-string|object $model
+     */
+    public function hasPolicy(string|object $model): bool
+    {
+        return $this->policyFor($model) !== null;
+    }
+
     /** @return list<string> */
     public function abilities(): array
     {

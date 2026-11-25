@@ -6,6 +6,7 @@ namespace Neo\Network\Http\Routing;
 
 use BadMethodCallException;
 use Closure;
+use InvalidArgumentException;
 use JsonSerializable;
 use LogicException;
 use Neo\Foundation\Kernel\ServiceContainer;
@@ -13,6 +14,7 @@ use Neo\Information\Structures\Str;
 use Neo\Network\Http\Context\RequestContext;
 use Neo\Network\Http\Contracts\ExceptionHandlerContract;
 use Neo\Network\Http\Contracts\RequestContextContract;
+use Neo\Network\Http\Contracts\RoutableResource;
 use Neo\Network\Http\Contracts\Responsable;
 use Neo\Network\Http\JsonResponse;
 use Neo\Network\Http\RedirectResponse;
@@ -54,6 +56,9 @@ class Router
 
     /** @var array<string, Closure> */
     protected array $binders = [];
+
+    /** @var array<string, Closure> расширения вида `Route::documentation('/docs')`, регистрируются при загрузке приложения */
+    protected array $macros = [];
 
     protected ParameterResolver $resolver;
 
@@ -275,10 +280,57 @@ class Router
     // Ресурсы
     // ------------------------------------------------------------------
 
-    /** @param array<string, mixed> $options */
-    public function resource(string $name, string $controller, array $options = []): PendingResourceRegistration
+    /**
+     * Ресурсные маршруты.
+     *
+     *   Route::resource('photos', PhotoController::class)->only(['index']);   // контроллер
+     *   Route::resource(PostResourceAPI::class);                              // ресурс описывает себя сам
+     *   Route::resource(PostResourceAPI::class, ['actions' => ['index']]);    // с настройками группы
+     *
+     * @param string|RoutableResource $name имя ресурса или самоописываемый ресурс (класс или объект)
+     * @param string|array<string, mixed>|null $controller класс контроллера или настройки самоописываемого ресурса
+     * @param array<string, mixed> $options
+     */
+    public function resource(string|RoutableResource $name, string|array|null $controller = null, array $options = []): PendingResourceRegistration|PendingRoutableResource
     {
-        return new PendingResourceRegistration(new ResourceRegistrar($this), $name, $controller, $options);
+        # Route::resource('user', UserResourceAPI::class): имя можно задать явно, но не обязательно.
+        if (is_string($controller) && is_string($name) && is_subclass_of($controller, RoutableResource::class)) {
+            $resource = $this->container->make($controller);
+
+            if (method_exists($resource, 'name')) {
+                $resource->name($name);
+            }
+
+            return new PendingRoutableResource($this, $resource, $options);
+        }
+
+        if (is_string($controller)) {
+            if (!is_string($name)) {
+                throw new InvalidArgumentException('Для ресурса с контроллером имя ресурса должно быть строкой.');
+            }
+
+            return new PendingResourceRegistration(new ResourceRegistrar($this), $name, $controller, $options);
+        }
+
+        $resource = $name;
+
+        if (is_string($name)) {
+            if (!class_exists($name)) {
+                throw new InvalidArgumentException(
+                    "Route::resource(\"{$name}\"): класс не найден. Проверьте имя и автозагрузку namespace (autoload.classes в app/Config/Bootstrap.php)."
+                );
+            }
+
+            $resource = $this->container->make($name);
+
+            if (!$resource instanceof RoutableResource) {
+                throw new InvalidArgumentException(
+                    "Route::resource(\"{$name}\"): укажите контроллер вторым аргументом или класс, реализующий " . RoutableResource::class . '.'
+                );
+            }
+        }
+
+        return new PendingRoutableResource($this, $resource, $controller ?? $options);
     }
 
     /** @param array<string, mixed> $options */
@@ -456,6 +508,12 @@ class Router
     // Справочная информация
     // ------------------------------------------------------------------
 
+    /** Контейнер приложения: модули, подключающие свои маршруты, берут из него свои сервисы. */
+    public function getContainer(): ServiceContainer
+    {
+        return $this->container;
+    }
+
     public function getRoutes(): RouteCollection
     {
         return $this->routes;
@@ -521,12 +579,37 @@ class Router
     }
 
     // ------------------------------------------------------------------
+    // Расширения
+    // ------------------------------------------------------------------
+
+    /**
+     * Добавляет метод роутеру: `Route::macro('documentation', fn (string $uri) => ...)`, затем
+     * `Route::documentation('/docs')`. Замыкание получает $this = Router. Так модули
+     * (например, ResourceAPI) расширяют маршрутизацию, не вшиваясь в неё.
+     */
+    public function macro(string $name, Closure $macro): static
+    {
+        $this->macros[$name] = $macro->bindTo($this, static::class) ?? $macro;
+
+        return $this;
+    }
+
+    public function hasMacro(string $name): bool
+    {
+        return isset($this->macros[$name]);
+    }
+
+    // ------------------------------------------------------------------
 
     /**
      * `Route::prefix('x')->middleware('auth')->group(...)`: атрибутные методы начинают цепочку.
      */
     public function __call(string $method, array $parameters): mixed
     {
+        if (isset($this->macros[$method])) {
+            return ($this->macros[$method])(...$parameters);
+        }
+
         if (in_array($method, RouteRegistrar::PASSTHRU_ATTRIBUTES, true)) {
             return (new RouteRegistrar($this))->attribute($method, ...$parameters);
         }

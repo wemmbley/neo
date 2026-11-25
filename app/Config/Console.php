@@ -28,6 +28,7 @@ return [
 //        base_path('neo/Network/Cookie/Tests'),
 //        base_path('neo/Network/Session/Tests'),
 //        base_path('neo/Network/Http/Tests'),
+//        base_path('neo/Network/ResourceAPI/Tests'),
 //        base_path('neo/Security/Tests'),
 //        base_path('neo/Information/Structures/Tests'),
     ],

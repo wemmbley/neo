@@ -40,6 +40,7 @@ return [
         'classes' => [
             $base . '/neo' => 'Neo',
             $base . '/app' => 'App',
+            $base . '/src' => 'Src',
         ],
 
         'files' => [

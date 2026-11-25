@@ -56,6 +56,20 @@ abstract class Relation
 
     abstract public function isMany(): bool;
 
+    /**
+     * Как связаны таблицы (для запросов "есть связанная запись", см. ResourceAPI).
+     * Поддерживают BelongsTo, HasOne, HasMany и BelongsToMany.
+     *
+     * Ключи: `type` (`belongs_to` | `has` | `pivot`), `parent` (колонка родителя), `related` (колонка
+     * связанной таблицы), а для `pivot` ещё `pivot` (таблица), `pivot_parent`, `pivot_related`.
+     *
+     * @return array<string, string>
+     */
+    public function linkage(): array
+    {
+        throw new LogicException(static::class . ' не описывает связь таблиц.');
+    }
+
     /** Результат для `$model->relation`: модель|null или коллекция. */
     abstract public function getResults(): mixed;
 

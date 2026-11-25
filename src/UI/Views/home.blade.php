@@ -9,7 +9,8 @@
     <script src="{{ resource('JS/Quas.js') }}"></script>
     <script src="{{ resource('JS/wex.min.js') }}"></script>
 </head>
-<body>
-<h1>Добро пожаловать в Neo!</h1>
+<body class="bg-black text-purple-500">
+    <img src="{{ resource('Images/Neo.png') }}" alt="logotype of neo">
+    <h1>Добро пожаловать в Neo!</h1>
 </body>
 </html>

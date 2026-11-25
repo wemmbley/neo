@@ -31,6 +31,16 @@ final class Requirements
                 continue;
             }
 
+            if ($key === 'php_functions') {
+                foreach ((array) $value as $function) {
+                    if (!function_exists((string) $function)) {
+                        $missing[] = (string) $function;
+                    }
+                }
+
+                continue;
+            }
+
             if (is_int($key)) {
                 $problem = self::checkVersion((string) $value);
 

@@ -24,6 +24,11 @@ return [
             'Reflection', # автосборка зависимостей контейнером
             'openssl',    # crypt
         ],
+        'php_functions' => [
+            'proc_open',    # Swoole Hooks.
+            'symlink',      # Storage Symlinks.
+            'ini_set',      # Tests, timezones.
+        ],
     ],
 
     'autoload' => [

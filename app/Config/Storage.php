@@ -26,7 +26,7 @@ return [
     ],
 
     'links' => [
-        base_path('app/Storage') => base_path('public/Storage'),
+        base_path('app/Storage/Public') => base_path('public/Storage/Public'),
         base_path('src/UI/Resources') => base_path('public/Resources'),
     ],
 ];

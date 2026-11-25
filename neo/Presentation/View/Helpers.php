@@ -10,9 +10,8 @@ if (! function_exists('view')) {
 if (! function_exists('resource')) {
     function resource(string $path): string
     {
+        $cleanPath = ltrim(str_replace('\\', '/', $path), '/');
 
-        $url = (string) (config('view::resources.url') ?? '');
-
-        return rtrim($url, '/') . '/' . ltrim($path, '/');
+        return \Neo\Network\Http\Facades\URL::to("/Resources/{$cleanPath}");
     }
 }

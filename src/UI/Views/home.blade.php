@@ -7,9 +7,6 @@
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>Neo</title>
     <script src="{{ resource('JS/Quas.js') }}"></script>
-    @debug
-        <script src="{{ resource('JS/QuasDebug.js') }}"></script>
-    @endDebug
     <script src="{{ resource('JS/wex.min.js') }}"></script>
 </head>
 <body>

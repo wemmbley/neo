@@ -8,15 +8,6 @@ return [
     'basic_path' => base_path('src/UI/Views'),
 
     #
-    # Папка ресурсов. Нужен для хелпера resource().
-    # Хелпер является синтаксическим сахаром над base_path().
-    #
-    'resources' => [
-        'path' => base_path('src/UI/Resources'),
-        'url' => '/Resources',
-    ],
-
-    #
     # Пространство имён для разделения папок.
     #
     'namespaces' => [

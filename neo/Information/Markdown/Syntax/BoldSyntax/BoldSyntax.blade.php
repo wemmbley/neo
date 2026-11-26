@@ -1,0 +1,1 @@
+<strong>{!! $el->content !!}</strong>

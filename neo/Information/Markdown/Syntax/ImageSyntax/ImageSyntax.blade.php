@@ -1,0 +1,1 @@
+@if($el->block)<p>@endif@if($el->link)<a href="{{ $el->link }}">@endif<img src="{{ $el->src }}" alt="{{ $el->alt }}"@if($el->title) title="{{ $el->title }}"@endif loading="lazy">@if($el->link)</a>@endif@if($el->block)</p>@endif

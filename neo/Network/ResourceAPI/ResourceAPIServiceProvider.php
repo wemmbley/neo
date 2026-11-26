@@ -53,6 +53,14 @@ class ResourceAPIServiceProvider extends ServiceProvider
         self::wire($this->app->make(Router::class), $this->app->getContainer(), $handler instanceof Handler ? $handler : null);
     }
 
+    public function boot(): void
+    {
+        # Шаблоны модуля доступны как «resourceapi::…»; свои пространства имён приложения не затираются.
+        if (config('view.namespaces.resourceapi') === null) {
+            config(['view.namespaces.resourceapi' => __DIR__ . '/Views']);
+        }
+    }
+
     /**
      * Подключает ResourceAPI к роутеру, ORM и Handler. Вынесено из boot(), чтобы тесты
      * могли собрать то же самое без ядра приложения.
@@ -96,6 +104,29 @@ class ResourceAPIServiceProvider extends ServiceProvider
             $uri = '/' . trim($uri, '/');
             $this->get($uri, fn (Request $request) => $docs->page($request))->name('resource-api.docs');
             $this->get($uri . '/schema.json', fn (Request $request) => $docs->data($request))->name('resource-api.docs.data');
+        });
+
+        # Route::manifest('/api/v1/routes.json'): именованные маршруты для JS-клиента.
+        $router->macro('manifest', function (string $uri = '/routes.json') use ($container, $registry): void {
+            $docs = new DocsController($registry(), $container->make(ResourceAuthorizer::class));
+            $router = $this;
+
+            $this->get('/' . trim($uri, '/'), static function (Request $request) use ($docs, $router) {
+                $routes = [];
+
+                foreach ($router->getRoutes()->getRoutes() as $route) {
+                    if ($route->getName() !== null) {
+                        $routes[] = [
+                            'name' => $route->getName(),
+                            'methods' => array_values(array_diff($route->methods(), ['HEAD'])),
+                            'uri' => $route->uri(),
+                            'resource' => $route->getAction('resource_api'),
+                        ];
+                    }
+                }
+
+                return $docs->manifest($request, $routes);
+            })->name('resource-api.manifest');
         });
 
         $handler?->renderable(

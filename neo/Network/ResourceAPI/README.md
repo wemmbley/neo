@@ -9,7 +9,7 @@
 Route::resource(PostResourceAPI::class);
 
 // src/UI/Routes/web.php
-Route::documentation('/docs/api');   // страница + /docs/api/schema.json
+Route::documentation('/docs/api');   // страница + /docs/api/schema.json (шаблон resourceapi::docs)
 ```
 
 ```php
@@ -58,3 +58,40 @@ GET /posts?filters[title][$contains]=neo&filters[author][name][$eq]=Ann
 - Доступ — через Policy (`GateResourceAuthorizer`); без политики разрешено всё, закрытые связи дают `relation_not_allowed`.
 - Свои фильтры: наследник `FilterResourceAPI` + `withFilters([...])`; `Post::filter($params)` применяет правила ресурса к любому запросу.
 - Тесты: `php cli test neo/Network/ResourceAPI/Tests`.
+
+## JS-клиент
+
+`public/js/neo-api.js` — один файл без зависимостей: ядро (`NeoAPI.Query`, `Http`, `serialize`), адаптер `$model` и именованные маршруты `$route`.
+
+```html
+<script src="/js/neo-api.js"></script>
+<script>
+  $model.config({ url: 'localhost/api/v1', token: '…' });
+
+  const page = await $model.get('posts')
+      .filter('title', '$contains', 'Neo')        // filter('stars', '>=', 4), filter('author.name', 'Ann')
+      .or((q) => q.filter('stars', 5), (q) => q.filter('pinned', true))
+      .sort('author.name:asc')                     // sort('-created_at')
+      .page(1, 20).include('author');
+
+  page.data; page.paginator; await page.next();
+  await $model.get('posts').create({ title: 'Hi' });
+  await $model.get('posts').update(5, { title: 'New' });   // PATCH; { full: true } — PUT
+  await $model.get('posts').destroy(5);
+  for await (const post of $model.get('posts').each()) { /* все страницы */ }
+
+  // сразу в состояние (как $wire.get().to()):
+  $model.get('users').paginate(5).to(state.users);          // массив меняется на месте
+  $model.get('users').to(state, 'users').meta(state, 'pager').done(fn).fail(fn);
+  $model.get('users').page(2, 5).to(state.users).append();  // дописать к имеющимся
+
+  // состояние списка: .state(() => ({ users: $model.list() }))  →  users.loading, users.error,
+  // users.pager {current, last, total, from, to, size, pages}, users.go(n) / next() / prev()
+</script>
+```
+
+Ошибки — `ResourceError` (`status`, `code`, `errors`, `field('email')`). Именованные маршруты: на сервере `Route::manifest('/api/v1/routes.json')` (ETag + `Cache-Control: max-age=60`), на клиенте `$model.config({ manifest: '/api/v1/routes.json' })`, затем `$route.get('posts.show', { id: 5 })`.
+
+## Страница документации
+
+Шаблон `Views/docs.blade.php` подключён как пространство имён `resourceapi` (`view('resourceapi::docs')`): вёрстка на Quas, интерфейс на Wex, JSON-ответы подсвечивает `w-code`. Ему нужны `JS/Quas.js`, `JS/wex.min.js` и `JS/wex-code.min.js` в `public/Resources`. Своё оформление: положите `docs.blade.php` в свою папку и укажите её в `view.namespaces.resourceapi`.

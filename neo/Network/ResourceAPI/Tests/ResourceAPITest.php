@@ -151,6 +151,9 @@ function ra_client(?ResourceAuthorizer $authorizer = null): TestClient
 
     ResourceAPI::configure(['debug' => true]);
 
+    # В тестах провайдеры не загружаются (boot()), поэтому пространство имён шаблонов задаём сами.
+    config(['view.namespaces.resourceapi' => dirname(__DIR__) . '/Views']);
+
     $client = new TestClient();
 
     if ($authorizer !== null) {
@@ -165,6 +168,7 @@ function ra_client(?ResourceAuthorizer $authorizer = null): TestClient
         $client->router->resource(ResourceAPI::make(RaTag::class)->name('tags')->actions(['index']));
     });
     $client->router->documentation('/docs/api');
+    $client->router->manifest('/api/v1/routes.json');
 
     return $client;
 }
@@ -442,12 +446,22 @@ test('Disabled actions, unknown paths under the API prefix and the schema route'
 test('Documentation page and data are served and the path is reserved', function () {
     $c = ra_client();
 
-    $page = $c->get('/docs/api');
+    # Хелпер resource() в шаблоне берёт адрес из контекста запроса глобального ядра.
+    $context = kernel(Neo\Network\Http\Context\RequestContext::class);
+    $context->enter(Neo\Network\Http\Request::create('http://localhost/docs/api'), new Neo\Network\Http\Response());
+
+    try {
+        $page = $c->get('/docs/api');
+    } finally {
+        $context->leave();
+    }
+
     $data = $c->get('/docs/api/schema.json');
     $json = json_decode($data->getContent(), true);
 
     expect($page->status())->toBe(200)
-        ->and($page->getContent())->toContain('Документация API')
+        ->and($page->getContent())->toContain('Документация API')->toContain('<template id="app">')
+        ->and($page->getContent())->toContain('"name":"restaurants"')->not->toContain('@json')
         ->and(array_column($json['resources'], 'name'))->toBe(['restaurants', 'chefs', 'tags'])
         ->and(array_column($json['resources'][0]['endpoints'], 'action'))->toContain('schema', 'index', 'update');
 
@@ -532,4 +546,18 @@ test('Route::resource(Class) needs no name: model and URL come from the class, n
 
     $docs = json_decode($c->get('/docs/api/schema.json')->getContent(), true);
     expect(array_column($docs['resources'], 'name'))->toContain('ra_tags', 'labels', 'legacy');
+});
+
+test('Manifest lists named routes with ETag and answers conditional requests', function () {
+    $c = ra_client();
+    $first = $c->get('/api/v1/routes.json');
+    $body = json_decode($first->getContent(), true);
+
+    expect($first->status())->toBe(200)
+        ->and($body['routes']['restaurants.index'])->toBe(['methods' => ['GET'], 'uri' => '/api/v1/restaurants', 'resource' => 'restaurants'])
+        ->and($body['routes']['restaurants.update']['methods'])->toBe(['PUT', 'PATCH'])
+        ->and($first->headers()->get('Cache-Control'))->toContain('max-age=60');
+
+    $second = $c->get('/api/v1/routes.json', [], ['If-None-Match' => $first->headers()->get('ETag')]);
+    expect($second->status())->toBe(304)->and($second->getContent())->toBe('');
 });

@@ -1,0 +1,1 @@
+<del>{!! $el->content !!}</del>

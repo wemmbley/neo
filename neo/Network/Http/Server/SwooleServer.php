@@ -104,7 +104,7 @@ final class SwooleServer implements ServerContract
     {
         $settings = [
             'worker_num' => $this->options['workers'] ?? SwooleApi::cpuNum(),
-            'max_request' => $this->options['max_request'] ?? 5000,
+            'max_request' => $this->options['max_request'] ?? 100000,
             'enable_coroutine' => true,
             'hook_flags' => $this->options['hook_flags'] ?? self::safeHookFlags(),
             'http_compression' => false,
@@ -113,7 +113,7 @@ final class SwooleServer implements ServerContract
             # Без задержки Nagle маленькие HTTP-ответы уходят сразу, а не ждут до 40 мс.
             'open_tcp_nodelay' => true,
             'backlog' => (int) ($this->options['backlog'] ?? 2048),
-            'log_level' => SwooleApi::constant('LOG_WARNING'),
+            'log_level' => SwooleApi::constantOr('LOG_WARNING', 4),
 
             # Graceful: при остановке и перезапуске воркер дорабатывает текущие запросы.
             'reload_async' => true,
@@ -162,7 +162,7 @@ final class SwooleServer implements ServerContract
     {
         $base = strtolower((string) ($this->options['mode'] ?? 'process')) === 'base' && $this->taskWorkers() === 0;
 
-        return SwooleApi::constant($base ? 'BASE' : 'PROCESS');
+        return SwooleApi::constantOr($base ? 'BASE' : 'PROCESS', $base ? 1 : 2);
     }
 
     private function taskWorkers(): int

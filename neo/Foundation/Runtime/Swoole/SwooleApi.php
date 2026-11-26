@@ -114,6 +114,16 @@ final class SwooleApi
     }
 
     /** Константа расширения: `SwooleApi::constant('HOOK_ALL')` → SWOOLE_HOOK_ALL или OPENSWOOLE_HOOK_ALL. */
+    /** Необязательная константа: если её нет (старая сборка, тестовая заглушка), берём значение по умолчанию. */
+    public static function constantOr(string $name, int $default): int
+    {
+        try {
+            return (int) self::constant($name);
+        } catch (\RuntimeException) {
+            return $default;
+        }
+    }
+
     public static function constant(string $name): int
     {
         foreach (['SWOOLE_', 'OPENSWOOLE_'] as $prefix) {

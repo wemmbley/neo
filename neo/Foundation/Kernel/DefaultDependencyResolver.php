@@ -9,10 +9,24 @@ use ReflectionClass;
 use ReflectionFunction;
 use ReflectionMethod;
 use ReflectionNamedType;
-use ReflectionType;
 
 class DefaultDependencyResolver implements DependencyResolverContract
 {
+    /**
+     * Планы сборки классов: рефлексия делается один раз на класс за жизнь процесса.
+     * Структура класса не меняется, поэтому кэш безопасен для Swoole и экономит
+     * ReflectionClass и getParameters() на каждый make().
+     *
+     * @var array<class-string, array{instantiable: bool, constructor: bool, params: list<array<string, mixed>>}>
+     */
+    private static array $classPlans = [];
+
+    /** @var array<string, array{ref: ReflectionMethod, params: list<array<string, mixed>>}> */
+    private static array $methodPlans = [];
+
+    /** @var array<string, bool> */
+    private static array $instantiable = [];
+
     public function resolve(
         ServiceContainer $container,
         string           $abstract,
@@ -76,15 +90,16 @@ class DefaultDependencyResolver implements DependencyResolverContract
                 ? $container->make($target)
                 : $target;
 
-            $reflection = new ReflectionMethod($object, $method);
+            $key = $object::class . '::' . $method;
+            $plan = self::$methodPlans[$key] ??= (static function () use ($object, $method): array {
+                $reflection = new ReflectionMethod($object, $method);
 
-            return $reflection->invokeArgs(
+                return ['ref' => $reflection, 'params' => self::plan($reflection->getParameters())];
+            })();
+
+            return $plan['ref']->invokeArgs(
                 $object,
-                $this->resolveParameters(
-                    $container,
-                    $reflection->getParameters(),
-                    $parameters,
-                ),
+                $this->resolveParameters($container, $plan['params'], $parameters),
             );
         }
 
@@ -101,7 +116,7 @@ class DefaultDependencyResolver implements DependencyResolverContract
 
         return $closure(...$this->resolveParameters(
             $container,
-            $reflection->getParameters(),
+            self::plan($reflection->getParameters()),
             $parameters,
         ));
     }
@@ -112,6 +127,24 @@ class DefaultDependencyResolver implements DependencyResolverContract
         array            $parameters,
     ): object
     {
+        $info = self::$classPlans[$class] ?? $this->inspect($class);
+
+        if (!$info['instantiable']) {
+            throw new ServiceContainerException(
+                "Класс {$class} нельзя создать (абстрактный или с закрытым конструктором)."
+            );
+        }
+
+        if (!$info['constructor']) {
+            return new $class();
+        }
+
+        return new $class(...$this->resolveParameters($container, $info['params'], $parameters, $class));
+    }
+
+    /** @return array{instantiable: bool, constructor: bool, params: list<array<string, mixed>>} */
+    private function inspect(string $class): array
+    {
         if (!class_exists($class)) {
             throw new ServiceContainerException(
                 interface_exists($class)
@@ -121,51 +154,72 @@ class DefaultDependencyResolver implements DependencyResolverContract
         }
 
         $reflection = new ReflectionClass($class);
-
-        if (!$reflection->isInstantiable()) {
-            throw new ServiceContainerException(
-                "Класс {$class} нельзя создать (абстрактный или с закрытым конструктором)."
-            );
-        }
-
         $constructor = $reflection->getConstructor();
 
-        if ($constructor === null) {
-            return new $class();
-        }
-
-        return $reflection->newInstanceArgs(
-            $this->resolveParameters(
-                $container,
-                $constructor->getParameters(),
-                $parameters,
-                $class,
-            ),
-        );
+        return self::$classPlans[$class] = [
+            'instantiable' => $reflection->isInstantiable(),
+            'constructor' => $constructor !== null,
+            'params' => $constructor !== null ? self::plan($constructor->getParameters()) : [],
+        ];
     }
 
+    /**
+     * Описание параметров в виде простых массивов: дальше рефлексия не нужна.
+     * Значения по умолчанию кэшируем, только если они не объекты (new в инициализаторе
+     * должен давать свежий объект при каждой сборке).
+     *
+     * @param list<\ReflectionParameter> $parameters
+     * @return list<array<string, mixed>>
+     */
+    private static function plan(array $parameters): array
+    {
+        $plan = [];
+
+        foreach ($parameters as $parameter) {
+            $type = $parameter->getType();
+            $named = $type instanceof ReflectionNamedType ? $type : null;
+            $hasDefault = $parameter->isDefaultValueAvailable();
+            $default = $hasDefault ? $parameter->getDefaultValue() : null;
+
+            $plan[] = [
+                'name' => $parameter->getName(),
+                'class' => $named !== null && !$named->isBuiltin() ? $named->getName() : null,
+                'builtin' => $named !== null && $named->isBuiltin() ? $named->getName() : null,
+                'hasDefault' => $hasDefault,
+                'default' => is_object($default) ? null : $default,
+                'dynamic' => is_object($default) ? $parameter : null,
+                'nullable' => $type !== null && $type->allowsNull(),
+                'variadic' => $parameter->isVariadic(),
+            ];
+        }
+
+        return $plan;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $plan
+     */
     private function resolveParameters(
         ServiceContainer $container,
-        array            $reflections,
+        array            $plan,
         array            $given,
         string           $context = '',
     ): array
     {
         $arguments = [];
 
-        foreach ($reflections as $parameter) {
-            $name = $parameter->getName();
-            $type = $parameter->getType();
+        foreach ($plan as $p) {
+            $name = $p['name'];
 
-            if (array_key_exists($name, $given)) {
-                $arguments[] = $this->coerce($given[$name], $type);
+            if ($given !== [] && array_key_exists($name, $given)) {
+                $arguments[] = $this->coerce($given[$name], $p['builtin']);
                 continue;
             }
 
-            if ($type instanceof ReflectionNamedType && !$type->isBuiltin()) {
-                $class = $type->getName();
+            $class = $p['class'];
 
-                if (array_key_exists($class, $given)) {
+            if ($class !== null) {
+                if ($given !== [] && array_key_exists($class, $given)) {
                     $arguments[] = $given[$class];
                     continue;
                 }
@@ -176,11 +230,11 @@ class DefaultDependencyResolver implements DependencyResolverContract
                 }
             }
 
-            if ($parameter->isDefaultValueAvailable()) {
-                $arguments[] = $parameter->getDefaultValue();
-            } elseif ($type !== null && $type->allowsNull()) {
+            if ($p['hasDefault']) {
+                $arguments[] = $p['dynamic'] !== null ? $p['dynamic']->getDefaultValue() : $p['default'];
+            } elseif ($p['nullable']) {
                 $arguments[] = null;
-            } elseif ($parameter->isVariadic()) {
+            } elseif ($p['variadic']) {
                 break;
             } else {
                 $where = $context !== '' ? " в {$context}" : '';
@@ -199,24 +253,20 @@ class DefaultDependencyResolver implements DependencyResolverContract
      */
     private function isInstantiable(string $class): bool
     {
-        return class_exists($class)
-            && (new \ReflectionClass($class))->isInstantiable();
+        return self::$instantiable[$class] ??= class_exists($class)
+            && (new ReflectionClass($class))->isInstantiable();
     }
 
     private function coerce(
-        mixed           $value,
-        ?ReflectionType $type,
+        mixed   $value,
+        ?string $builtin,
     ): mixed
     {
-        if (
-            !is_string($value)
-            || !$type instanceof ReflectionNamedType
-            || !$type->isBuiltin()
-        ) {
+        if (!is_string($value) || $builtin === null) {
             return $value;
         }
 
-        return match ($type->getName()) {
+        return match ($builtin) {
             'int' => preg_match('/^-?\d+$/', $value) === 1
                 ? (int)$value
                 : $value,

@@ -213,8 +213,6 @@ abstract class Model implements JsonSerializable, Stringable
     {
         static::bootObservers();
 
-        $vars = get_object_vars($this);
-
         foreach (static::metadata()->fields as $prop => $field) {
             if ($field->hasDefault && !($field->default === null && !$field->nullable)) {
                 $this->{$prop} = $field->default;
@@ -252,23 +250,47 @@ abstract class Model implements JsonSerializable, Stringable
     protected function hydrateRow(array $row): static
     {
         $meta = static::metadata();
+        $original = [];
+        $matched = 0;
+        $complete = true;
 
         foreach ($row as $column => $value) {
             $field = $meta->fieldByColumn((string) $column);
 
             if ($field === null) {
-                $this->attributes[$column] = Caster::fromDb($value, $meta->classicCasts[$column] ?? null);
+                $converted = Caster::fromDb($value, $meta->classicCasts[$column] ?? null);
+                $this->attributes[$column] = $converted;
+                $original[$column] = self::dbValue($converted);
             } elseif ($value !== null || $field->nullable) {
-                $this->{$field->property} = Caster::fromDb($value, $field->cast);
+                $converted = Caster::fromDb($value, $field->cast);
+                $this->{$field->property} = $converted;
+                $original[$column] = self::dbValue($converted);
+                $matched++;
+            } else {
+                # NULL в колонке без nullable: свойство остаётся неинициализированным.
+                $complete = false;
             }
         }
 
         $this->exists = true;
         $this->fromQuery = true;
         $this->relationCache = [];
-        $this->syncOriginal();
+
+        # Снимок «как в БД» собран прямо в цикле. Если строка покрыла не все поля модели
+        # (select с частью колонок) или были NULL без nullable, поведение прежнее: полный syncOriginal().
+        if ($complete && $matched === count($meta->fields)) {
+            $this->original = $original;
+        } else {
+            $this->syncOriginal();
+        }
 
         return $this;
+    }
+
+    /** То же, что Caster::toDb(), но без вызова для самых частых скаляров. */
+    private static function dbValue(mixed $value): mixed
+    {
+        return $value === null || is_int($value) || is_string($value) || is_float($value) ? $value : Caster::toDb($value);
     }
 
     # ------------------------------------------------------------ attributes

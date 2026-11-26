@@ -53,6 +53,11 @@ class Request implements RequestContract
 
     protected ?string $method = null;
 
+    /** Кэш getPathInfo(): путь разбирается один раз на запрос (его спрашивают роутер, CORS, is() и др.). */
+    private string $pathInfoKey = '';
+
+    private string $pathInfoValue = '';
+
     /**
      * @param array<string, mixed>  $query      $_GET
      * @param array<string, mixed>  $request    $_POST (тело формы)
@@ -216,6 +221,12 @@ class Request implements RequestContract
     public function getPathInfo(): string
     {
         $uri = (string) ($this->server['REQUEST_URI'] ?? '/');
+        $key = $uri . "\0" . (string) ($this->server['SCRIPT_NAME'] ?? '');
+
+        if ($key === $this->pathInfoKey) {
+            return $this->pathInfoValue;
+        }
+
         $path = (string) (parse_url('http://x' . (str_starts_with($uri, '/') ? '' : '/') . $uri, PHP_URL_PATH) ?? '/');
 
         $base = $this->basePath();
@@ -230,8 +241,11 @@ class Request implements RequestContract
         }
 
         $decoded = (string) preg_replace('#/{2,}#', '/', $decoded);
+        $result = $decoded === '' ? '/' : '/' . ltrim($decoded, '/');
 
-        return $decoded === '' ? '/' : '/' . ltrim($decoded, '/');
+        $this->pathInfoKey = $key;
+
+        return $this->pathInfoValue = $result;
     }
 
     /** Путь без начального и конечного слэша; `/` для корня (как в Laravel). */
@@ -841,6 +855,11 @@ class Request implements RequestContract
      */
     public function transformInput(Closure $callback): static
     {
+        # Нечего преобразовывать: пустые query и body (типичный GET) не стоят ни замыканий, ни обхода.
+        if ($this->query === [] && $this->request === [] && !$this->isJson()) {
+            return $this;
+        }
+
         $apply = static function (array $data) use ($callback, &$apply): array {
             foreach ($data as $key => $value) {
                 $data[$key] = is_array($value) ? $apply($value) : $callback($value, $key);

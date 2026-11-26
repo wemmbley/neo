@@ -35,6 +35,14 @@ final class MiddlewareRegistry
     private array $priority = [];
 
     /**
+     * Результаты resolve() для строковых списков. Реестр после загрузки только читается,
+     * поэтому разворачивание групп и псевдонимов делается один раз, а не на каждый запрос.
+     *
+     * @var array<string, list<mixed>>
+     */
+    private array $memo = [];
+
+    /**
      * Регистрирует псевдонимы: `register(['auth' => Class::class])` или `register('auth', Class::class)`.
      *
      * @param array<string, class-string>|string $aliases
@@ -48,6 +56,7 @@ final class MiddlewareRegistry
         foreach ($aliases as $alias => $target) {
             $this->aliases[$alias] = $target;
         }
+        $this->memo = [];
 
         return $this;
     }
@@ -61,6 +70,7 @@ final class MiddlewareRegistry
     public function group(string $name, array $middleware): static
     {
         $this->groups[$name] = array_values($middleware);
+        $this->memo = [];
 
         return $this;
     }
@@ -69,6 +79,7 @@ final class MiddlewareRegistry
     public function appendToGroup(string $group, array|string $middleware): static
     {
         $this->groups[$group] = array_values(array_unique([...($this->groups[$group] ?? []), ...(array) $middleware]));
+        $this->memo = [];
 
         return $this;
     }
@@ -77,6 +88,7 @@ final class MiddlewareRegistry
     public function prependToGroup(string $group, array|string $middleware): static
     {
         $this->groups[$group] = array_values(array_unique([...(array) $middleware, ...($this->groups[$group] ?? [])]));
+        $this->memo = [];
 
         return $this;
     }
@@ -85,6 +97,7 @@ final class MiddlewareRegistry
     public function global(array $middleware): static
     {
         $this->global = array_values($middleware);
+        $this->memo = [];
 
         return $this;
     }
@@ -93,6 +106,7 @@ final class MiddlewareRegistry
     public function appendGlobal(array|string $middleware): static
     {
         $this->global = array_values(array_unique([...$this->global, ...(array) $middleware]));
+        $this->memo = [];
 
         return $this;
     }
@@ -101,6 +115,7 @@ final class MiddlewareRegistry
     public function prependGlobal(array|string $middleware): static
     {
         $this->global = array_values(array_unique([...(array) $middleware, ...$this->global]));
+        $this->memo = [];
 
         return $this;
     }
@@ -114,6 +129,7 @@ final class MiddlewareRegistry
     public function priority(array $priority): static
     {
         $this->priority = array_values($priority);
+        $this->memo = [];
 
         return $this;
     }
@@ -149,6 +165,42 @@ final class MiddlewareRegistry
      * @return list<mixed>
      */
     public function resolve(array $names, array $excluded = [], bool $sort = true): array
+    {
+        $key = $this->memoKey($names, $excluded, $sort);
+
+        if ($key !== null && isset($this->memo[$key])) {
+            return $this->memo[$key];
+        }
+
+        $result = $this->resolveUncached($names, $excluded, $sort);
+
+        if ($key !== null) {
+            $this->memo[$key] = $result;
+        }
+
+        return $result;
+    }
+
+    /** Ключ кэша, если в списке только строки (Closure и объекты не кэшируем). */
+    private function memoKey(array $names, array $excluded, bool $sort): ?string
+    {
+        foreach ($names as $name) {
+            if (!is_string($name)) {
+                return null;
+            }
+        }
+
+        foreach ($excluded as $name) {
+            if (!is_string($name)) {
+                return null;
+            }
+        }
+
+        return implode("\0", $names) . "\1" . implode("\0", $excluded) . ($sort ? "\2s" : "\2u");
+    }
+
+    /** @return list<mixed> */
+    private function resolveUncached(array $names, array $excluded, bool $sort): array
     {
         $resolved = [];
 

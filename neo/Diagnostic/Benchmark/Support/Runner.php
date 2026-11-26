@@ -18,7 +18,11 @@ final class Runner
     public function measure(Scenario $scenario, Context $context, int $iterations = 1, int $warmup = 0): array
     {
         $probe = new Probe();
-        $context->connection()->listen($probe->listener());
+
+        # Сценарии без БД не должны брать соединение из пула: это съело бы часть замера.
+        if ($scenario->group !== 'plain') {
+            $context->connection()->listen($probe->listener());
+        }
 
         for ($i = 0; $i < $warmup; $i++) {
             try {

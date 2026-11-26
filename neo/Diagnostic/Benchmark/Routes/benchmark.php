@@ -13,6 +13,7 @@ $routes = static function (): void {
     Route::get('/seed', [BenchmarkController::class, 'seed']);
     Route::get('/reset', [BenchmarkController::class, 'reset']);
     Route::get('/all', [BenchmarkController::class, 'all']);
+    Route::get('/raw', [BenchmarkController::class, 'raw']);
     # В именах сценариев есть точка (db.pk), а по умолчанию параметр её не принимает.
     Route::get('/{scenario}', [BenchmarkController::class, 'run'])->where('scenario', '[A-Za-z0-9_.\-]+');
 };

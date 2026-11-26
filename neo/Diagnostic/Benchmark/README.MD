@@ -27,6 +27,7 @@ curl http://127.0.0.1:8000/benchmark/stats    # окружение, пул со�
 | `/benchmark/all`            | Пакетный прогон внутри процесса: `?n=50&group=db.read,db.write&only=...&format=text` |
 | `/benchmark/seed`           | Наполнение: `?users=1000&posts=10000&comments=50000` (добавляет к существующему)     |
 | `/benchmark/reset`          | Очистка всех `bench_*` таблиц                                                        |
+| `/benchmark/raw`            | Текст `pong` без раннера и JSON: потолок сервера, роутера и middleware               |
 | `/benchmark/stats`          | PHP, Swoole, opcache, пул БД, версия БД, число строк                                 |
 | `/benchmark/web/...`        | То же, но через группу `web` (куки, сессия, CSRF): стоимость полного стека           |
 
@@ -75,3 +76,24 @@ BENCH_PREFIX=/benchmark/web/ wrk -t4 -c100 -d30s --latency -s neo/Diagnostic/Ben
 
 `BENCHMARK_ENABLED`, `BENCHMARK_MAX_ITERATIONS` (потолок `?n=`), `BENCHMARK_MAX_BULK_ROWS`, `BENCHMARK_MAX_SLEEP_MS`,
 `BENCHMARK_BOUNDS_TTL` (секунд кэшировать min/max id в процессе).
+
+## Настройка MySQL для честных замеров
+
+- `DB_EMULATE_PREPARES=true` (по умолчанию): параметры подставляет клиент, запрос уходит одним кругом до сервера.
+  На серверных prepared statements (`false`) каждый запрос это 2-3 круга, и `db.select1`/`db.pk` в 2 раза медленнее.
+- `innodb_flush_log_at_trx_commit=1` (по умолчанию) означает fsync на каждый коммит: `db.insert` упирается в диск
+  (около 2 мс на SSD без write cache). Для замеров «потолка» без диска попробуйте значение `2`, но боевые настройки не меняйте.
+- `DB_POOL_MAX` не меньше числа одновременных запросов на воркер, иначе запросы ждут свободное соединение.
+- `/benchmark/db.transfer` берёт строки в случайном порядке и вызывает настоящие дедлоки InnoDB; они ловятся и повторяются
+  (поле `retries`), а `SHOW GLOBAL STATUS LIKE 'Innodb_deadlocks'` покажет их число на стороне сервера.
+
+## Как читать вывод wrk
+
+- Всегда добавляйте `--latency`: средняя задержка у wrk пересчитывается с поправкой на «скоординированное
+  опущение», и редкие зависания по 300-500 мс раздувают её в разы. Реальную картину дают p50/p99.
+- Строка `Non-2xx or 3xx responses` означает ошибки сценария или 404. Причина пишется в stderr сервера
+  (`[benchmark] сценарий: сообщение`).
+- `Socket errors: read N` под Swoole обычно значит, что воркер перезапустился и закрыл соединения
+  (`SWOOLE_MAX_REQUEST`), либо уперся `SWOOLE_REQUEST_TIMEOUT`.
+- Запускайте `wrk`, MySQL и Swoole на одной машине осторожно: у вас 12 потоков, а воркеры + MySQL + 4 потока wrk
+  уже конкурируют за них. Для чистого результата ограничьте `SWOOLE_WORKERS=8` и `wrk -t2`.

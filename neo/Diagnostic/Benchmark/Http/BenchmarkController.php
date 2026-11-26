@@ -45,10 +45,20 @@ final class BenchmarkController
             . '<h1>Neo Benchmark</h1>'
             . '<p><a href="' . $base . '/stats">stats</a> · <a href="' . $base . '/seed">seed</a> (?users=1000&amp;posts=10000&amp;comments=50000) · '
             . '<a href="' . $base . '/reset">reset</a> · <a href="' . $base . '/all?format=text">all (in-process)</a></p>'
+            . '<p>Потолок сервера без раннера и JSON: <a href="' . $base . '/raw">raw</a></p>'
             . '<p>Нагрузка: <code>wrk -t4 -c100 -d30s --latency http://127.0.0.1:8000' . $base . '/mix</code></p>'
             . '<table><tr><th>scenario</th><th>group</th><th>description</th></tr>' . $rows . '</table>';
 
         return response($html, 200, ['Content-Type' => 'text/html; charset=utf-8']);
+    }
+
+    /**
+     * Самый дешёвый ответ: без раннера, статистики и JSON. Измеряет потолок сервера, роутера и middleware.
+     * (Не путать с /benchmark/ping: тот идёт через раннер и отдаёт JSON с замерами.)
+     */
+    public function raw(): mixed
+    {
+        return response('pong', 200, ['Content-Type' => 'text/plain; charset=utf-8']);
     }
 
     /** Один прогон (n=1 по умолчанию) в рамках запроса. */
@@ -68,7 +78,14 @@ final class BenchmarkController
         } catch (NoDataException $e) {
             return $this->json(['error' => $e->getMessage()], 409);
         } catch (Throwable $e) {
+            error_log("[benchmark] {$scenario}: " . $e::class . ': ' . $e->getMessage());
+
             return $this->json(['error' => $e::class . ': ' . $e->getMessage()], 500);
+        }
+
+        if ($r['errors'] > 0) {
+            # Под нагрузкой ответ с 500 виден в wrk только как Non-2xx: причину выводим в лог сервера.
+            error_log("[benchmark] {$scenario}: {$r['first_error']}");
         }
 
         $totalMs = (hrtime(true) - $started) / 1e6;

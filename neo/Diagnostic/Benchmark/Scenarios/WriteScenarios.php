@@ -88,6 +88,12 @@ final class WriteScenarios
                 $base = $c->userId();
                 $a = $base;
                 $b = $base + random_int(1, $span - 1);
+
+                # Порядок блокировок случайный: без этого строки всегда берутся по возрастанию id и дедлоков не бывает.
+                if (random_int(0, 1) === 1) {
+                    [$a, $b] = [$b, $a];
+                }
+
                 $retries = 0;
 
                 for ($attempt = 0; $attempt < 5; $attempt++) {

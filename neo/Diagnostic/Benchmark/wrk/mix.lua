@@ -6,7 +6,7 @@ local prefix = os.getenv("BENCH_PREFIX") or "/benchmark/"
 local weights = {
   {"db.pk", 35}, {"db.list", 15}, {"db.join", 5}, {"db.comments", 10}, {"db.pk_orm", 5},
   {"db.insert", 10}, {"db.update", 8}, {"db.transaction", 5}, {"db.counter", 4}, {"db.aggregate", 1},
-  {"ping", 2},
+  {"raw", 2},
 }
 
 local total = 0

@@ -47,6 +47,9 @@ return [
             'strict' => true,
             'engine' => null,
             'timezone' => '+00:00',
+
+            # true: параметры подставляет клиент (1 круг до сервера на запрос вместо 2-3). false: серверные prepared statements.
+            'emulate_prepares' => env('DB_EMULATE_PREPARES', true),
         ],
     ],
 

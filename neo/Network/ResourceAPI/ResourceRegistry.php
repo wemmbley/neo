@@ -57,6 +57,17 @@ final class ResourceRegistry
         $this->documentation[] = $uri;
     }
 
+    public function forName(string $name): ?ResourceAPI
+    {
+        foreach ($this->entries as $entry) {
+            if ($entry['resource']->resourceName() === $name) {
+                return $entry['resource'];
+            }
+        }
+
+        return null;
+    }
+
     /** @param class-string $model */
     public function forModel(string $model): ?ResourceAPI
     {

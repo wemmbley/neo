@@ -8,9 +8,7 @@
     <title>Neo</title>
     <script src="{{ resource('JS/Quas.js') }}"></script>
     <script src="{{ resource('JS/wex.min.js') }}"></script>
+    <script src="{{ resource('JS/neo-api.js') }}"></script>
+    <link rel="stylesheet" href="{{ resource('Fonts/FontAwesome/css/all.css') }}">
+    <script>$model.config({url: '/api'})</script>
 </head>
-<body class="bg-black text-purple-500">
-    <img src="{{ resource('Images/Neo.png') }}" alt="logotype of neo">
-    <h1>Добро пожаловать в Neo!</h1>
-</body>
-</html>

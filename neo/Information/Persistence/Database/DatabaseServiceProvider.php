@@ -61,11 +61,20 @@ class DatabaseServiceProvider extends ServiceProvider
         $this->app->singleton(Migrator::class, function () {
             $cfg = (array) config('database.migrations', []);
 
-            return new Migrator(
+            $migrator = new Migrator(
                 $this->app->make(DatabaseManager::class),
                 $cfg,
                 (array) ($cfg['paths'] ?? [base_path('app/Database/Migrations')]),
             );
+
+            # Миграции, которые подключили сервис-провайдеры (loadMigrations()). Читаются лениво: Migrator
+            # создаётся вместе с командой, раньше чем отработают register() остальных провайдеров.
+            $migrator->resolvePathsUsing(fn (): array => array_values(array_filter(
+                $this->app->resources('migrations'),
+                static fn (mixed $path): bool => is_string($path) && is_dir($path),
+            )));
+
+            return $migrator;
         });
 
         $this->app->singleton(SchemaMigrator::class, fn () => new SchemaMigrator($this->app->make(Migrator::class)));

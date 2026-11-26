@@ -38,6 +38,30 @@ class Migrator
         }
     }
 
+    /** @var (Closure(): list<string>)|null отложенные пути модулей (провайдеры регистрируются позже Migrator) */
+    private ?Closure $pathResolver = null;
+
+    /** @param Closure(): list<string> $resolver */
+    public function resolvePathsUsing(Closure $resolver): void
+    {
+        $this->pathResolver = $resolver;
+    }
+
+    /** @return list<array{path: string, owner: string}> */
+    private function allPaths(): array
+    {
+        $paths = $this->paths;
+        $known = array_column($paths, 'path');
+
+        foreach ($this->pathResolver ? ($this->pathResolver)() : [] as $path) {
+            if (!in_array($path, $known, true)) {
+                $paths[] = ['path' => $path, 'owner' => 'module'];
+            }
+        }
+
+        return $paths;
+    }
+
     /** @param string $owner владелец путей: класс провайдера модуля, 'app' для приложения */
     public function addPath(string $path, string $owner = 'app'): void
     {
@@ -68,7 +92,7 @@ class Migrator
     {
         $entries = [];
 
-        foreach ($this->paths as ['path' => $dir, 'owner' => $owner]) {
+        foreach ($this->allPaths() as ['path' => $dir, 'owner' => $owner]) {
             foreach (glob(rtrim($dir, '/\\') . '/*.php') ?: [] as $file) {
                 $migration = $this->resolve($file);
 
@@ -196,7 +220,7 @@ class Migrator
     private function strategy(Migration $migration, string $file): string
     {
         $overrides = static fn (string $method): bool
-            => (new ReflectionMethod($migration, $method))->getDeclaringClass()->getName() !== Migration::class;
+        => (new ReflectionMethod($migration, $method))->getDeclaringClass()->getName() !== Migration::class;
 
         $legacy = $overrides('up');
         $declarative = $overrides('table');

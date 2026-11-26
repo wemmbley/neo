@@ -41,6 +41,7 @@ return [
         \Neo\Information\Faker\FakerServiceProvider::class,
         \Neo\Information\Datetime\DatetimeServiceProvider::class,
         \Neo\Presentation\View\ViewServiceProvider::class,
+        \Neo\Diagnostic\Benchmark\BenchmarkServiceProvider::class,
         \App\Providers\AppServiceProvider::class,
     ],
 

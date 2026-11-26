@@ -1,0 +1,1 @@
+<div class="md-embed md-embed--{{ $el->provider }}"><iframe src="{{ $el->src }}" title="{{ $el->title ?? ucfirst($el->provider) }}" loading="lazy" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen"></iframe></div>

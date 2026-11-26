@@ -477,7 +477,7 @@
     //    - $negative:  Boolean allowing negative values (e.g., -mt-4).
     //    - $default:   Fallback function if no other condition matches.
     // 5. Finally combines $prop + value into a CSS declaration, adding $base if defined.
-        const UTILITY_CONFIG = {
+    const UTILITY_CONFIG = {
         // --- Display & Visibility ---
         'block': 'display: block',
         'isolate': 'isolation: isolate',
@@ -1168,6 +1168,21 @@
                 $num: TRANSFORMERS.opacity,
             },
             $arbitrary: (value, context) => {
+                // Tailwind type hints: bg-[size:60px_60px], bg-[position:center_top],
+                // bg-[color:var(--x)], bg-[image:url(a.png)]
+                const hint = value.match(/^(color|length|size|percentage|position|image|url):(.+)$/);
+                if (hint) {
+                    context.$prop = {
+                        color: 'background-color',
+                        length: 'background-size',
+                        size: 'background-size',
+                        percentage: 'background-size',
+                        position: 'background-position',
+                        image: 'background-image',
+                        url: 'background-image',
+                    }[hint[1]];
+                    return hint[1] === 'url' ? `url(${hint[2]})` : hint[2];
+                }
                 if (looksLikeColor(value)) {
                     context.$prop = 'background-color'
                     return value;
@@ -1194,7 +1209,7 @@
             },
 
             'clip': {
-                $prop: 'background-clip',
+                $prop: ['-webkit-background-clip', 'background-clip'],
                 'border': 'border-box',
                 'padding': 'padding-box',
                 'content': 'content-box',
@@ -2058,13 +2073,54 @@
     // =========================================================================
     // =========================================================================
 
+    // Tailwind arbitrary-value decoding, shared by `p-[3px]` and `[prop:value]`:
+    //   1fr_2fr -> 1fr 2fr,  my__image.png -> my_image.png,
+    //   calc(100%+8px) -> calc(100% + 8px)  (CSS requires spaces around + and -)
+    const decodeArbitraryValue = raw => raw
+        .replace(/__|_/g, v => v === '__' ? '_' : ' ')
+        .replace(/(calc|min|max|clamp)\(([^()]*)\)/g, (m, fn, body) => `${fn}(${body.replace(/([\w)%])([+-])([\w(.])/g, "$1 $2 $3")})`);
+
     function _resolveUtility(className) {
         // Stage 0: Handle prefixes like `!` (important) and `-` (negative).
         const isImportant = className.startsWith('!');
         const classNameWithoutImportant = isImportant ? className.substring(1) : className;
 
+        // Stage 0.4: Arbitrary properties, e.g. `[mask-image:linear-gradient(...)]`,
+        // `[transform:perspective(260px)_rotateX(62deg)]`, `[--my-var:10px]`.
+        // Tailwind sorts them after all regular utilities.
+        const arbitraryProperty = classNameWithoutImportant.match(/^\[(--[\w-]+|[a-z][\w-]*):(.+)\]$/i);
+        if (arbitraryProperty) {
+            const value = decodeArbitraryValue(arbitraryProperty[2]).trim();
+            if (!value) return null;
+            return {
+                css: `${arbitraryProperty[1]}: ${value}${isImportant ? ' !important' : ''};`,
+                base: undefined,
+                selector: undefined,
+                order: [8e15],
+            };
+        }
+
         const isNegative = classNameWithoutImportant.startsWith('-');
-        const baseClassName = isNegative ? classNameWithoutImportant.substring(1) : classNameWithoutImportant;
+        let baseClassName = isNegative ? classNameWithoutImportant.substring(1) : classNameWithoutImportant;
+
+        // Stage 0.5: Opacity modifier that the plain `-[...]` / `name/N` parsing can't see:
+        //   bg-[#1a0633]/50   -> arbitrary value + percent modifier (0.5)
+        //   bg-white/[0.03]   -> bracket modifier, already a fraction (0.03)
+        //   bg-[#1a0633]/[.4] -> both
+        // Fractions like `w-1/2` / `top-1/2` are untouched: they never end with `]/N` or `/[N]`.
+        let modifierOpacity = null;
+        {
+            const pct = baseClassName.match(/^(.+-\[.+\])\/(\d+(?:\.\d+)?)$/);
+            const frac = !pct && baseClassName.match(/^(.+)\/\[(\d*\.?\d+)\]$/);
+            if (pct) {
+                baseClassName = pct[1];
+                modifierOpacity = Number(pct[2]) / 100;
+            } else if (frac) {
+                baseClassName = frac[1];
+                modifierOpacity = Number(frac[2]);
+            }
+            if (modifierOpacity !== null && !(modifierOpacity >= 0 && modifierOpacity <= 1)) return null;
+        }
 
         // Stage 1: Parse for arbitrary values, e.g., 'p-[3px]'.
         const arbitraryStart = baseClassName.indexOf('-[');
@@ -2160,15 +2216,7 @@
         // For 'rounded-md', remainingPath becomes 'md'.
         // For 'bg-red-500', remainingPath becomes 'red-500'.
         let valuePart = isArbitrary
-            ? baseClassName
-                .slice(arbitraryStart + 2, -1)
-                // 1fr_2fr                    → 1fr 2fr
-                // 0_4px_10px_black           → 0 4px 10px black
-                // url(my__image.png)         → url(my_image.png)
-                // var(--my__color)           → var(--my_color)
-                .replace(/__|_/g, v => v === '__' ? '_' : ' ')
-                // CSS requires spaces around + and - inside math functions: calc(100%+8px) is invalid.
-                .replace(/(calc|min|max|clamp)\(([^()]*)\)/g, (m, fn, body) => `${fn}(${body.replace(/([\w)%])([+-])([\w(.])/g, "$1 $2 $3")})`)
+            ? decodeArbitraryValue(baseClassName.slice(arbitraryStart + 2, -1))
             : remainingPath;
 
 
@@ -2196,9 +2244,26 @@
             }
         }
 
+        // A bracket/percent modifier only makes sense on colors. Never drop it silently (`p-4/[0.5]`).
+        if (modifierOpacity !== null && !isArbitrary &&
+            !(typeof context.$color === 'function' && colorMap.has(valuePart))) {
+            return null;
+        }
+
         let cssValue = null;
 
         if (isArbitrary) {
+            // `bg-[#1a0633]/50` -> `rgb(26 6 51 / 0.5)`, like Tailwind does for arbitrary hex colors.
+            if (modifierOpacity !== null) {
+                const hex = valuePart.match(/^#([\da-f]{3}|[\da-f]{6})$/i);
+                if (hex) {
+                    valuePart = `rgb(${hexToRgb(valuePart).join(' ')} / ${+modifierOpacity.toFixed(3)})`;
+                } else if (looksLikeColor(valuePart)) {
+                    valuePart = `color-mix(in oklab, ${valuePart} ${+(modifierOpacity * 100).toFixed(1)}%, transparent)`;
+                } else {
+                    return null; // modifier on a non-color arbitrary value
+                }
+            }
             // For arbitrary values like `p-[3px]`, `valuePart` is '3px' (or '-3px' if negative).
             if (typeof context.$arbitrary === 'function') {
                 cssValue = context.$arbitrary(valuePart, context);
@@ -2231,7 +2296,9 @@
             // Case 4: Check if it's a known color keyword (e.g., 'border-white').
             // We check the base color name, ignoring any opacity modifier like '/50'.
             if (typeof context.$color === 'function' && colorMap.has(parts[0])) {
-                const opacity = parts[1] ? Number(parts[1])/100 : null;
+                const opacity = modifierOpacity !== null
+                    ? modifierOpacity
+                    : parts[1] ? Number(parts[1])/100 : null;
                 if (isNaN(opacity)) return null
                 cssValue = context.$color(parts[0], opacity, context);
             }
@@ -2752,7 +2819,7 @@
     // and `transform` utilities applied on first load. The browser would otherwise try
     // to transition from a default transform (e.g., translate(0,0)) to the utility's
     // value (e.g., translate(1rem, 0)), causing an unwanted animation.
-        const noTransitionStyle = appendStyleTag(
+    const noTransitionStyle = appendStyleTag(
         'q-css-no-transitions',
         '*, *::before, *::after { transition: none !important; }'
     );

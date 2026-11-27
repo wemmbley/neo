@@ -85,10 +85,6 @@ php packagist.phar optimize
     "version": "3.0.0",
     "author": "wemmbley",
     "website": "https://github.com/wemmbley/neo",
-    "dist": {
-      "type": "zip",
-      "url": "ссылка_на_зип"
-    }
   },
   "autoload":  {
     "classes": {
@@ -109,25 +105,37 @@ php packagist.phar optimize
   "php": {
     "version": ">=8.5",
     "extensions": {
-      "curl": "HTTP клиент",
-      "pdo_mysql": "Дополнительный драйвер для моделей",
-      "pdo_sqlite": "Базовый пакет для моделей",
-      "sockets": "UDP клиент и другие протоколы",
-      "zip": "Скачивание и распаковка пакетов с гита",
-      "mbstring": "mb_* в командах, кириллица",
-      "json": "Команда config:show, вывод конфигов",
-      "pcre": "Разбор Env и сигнатур команд",
-      "spl": "spl_autoload_register",
-      "Reflection": "автосборка зависимостей контейнером",
-      "openssl": "Security домен, Crypt сервис"
+      "required": {
+        "json": "Команда config:show, вывод конфигов",
+        "mbstring": "mb_* в командах, кириллица",
+        "pcre": "Разбор Env и сигнатур команд",
+        "Reflection": "Автосборка зависимостей контейнером",
+        "openssl": "Security домен, Crypt сервис",
+        "zip": "Скачивание и распаковка пакетов с Git",
+        "spl": "spl_autoload_register"
+      },
+      "recommended": {
+        "curl": "HTTP клиент",
+        "sockets": "UDP клиент и другие протоколы"
+      }, 
+      "oneOf": [
+        {
+          "pdo_sqlite": "Базовый драйвер для моделей",
+          "pdo_mysql": "Дополнительный драйвер для моделей"
+        }
+      ],
     },
     "functions": {
-      "proc_open": "Swoole Hooks.",
-      "symlink": "Storage Symlinks.",
-      "ini_set": "Tests, timezones."
+      "recommended": {
+        "proc_open": "Swoole Hooks.",
+        "symlink": "Storage Symlinks.",
+        "ini_set": "Tests, timezones."
+      }
     }
   },
-  "packages": {}
+  "packages": {
+    "neo/autoload": ">= 1.0.0"
+  }
 }
 ```
 
@@ -203,12 +211,17 @@ php packagist.phar registry add https://github.com/wemmbley/packagist/registry.j
 ```json 
 {
   "type": "registry",
-  "description": "Единый реестр зависимостей Packagist.",
   "packages": {
-    "neo": [
-      "https://github.com/wemmbley/neo",
-      "https://codeberg.org/wemmbley/neo"
-    ]
+    "neo": {
+      "mirrors": ["https://github.com/wemmbley/neo"],
+      "versions": {
+        "3.0.0": {
+          "dist": {"url": "https://codeload.github.com/wemmbley/neo/zip/refs/tags/3.x", "sha256": "..."},
+          "require": {"database": ">=1.0", "security": ">=1.0"},
+          "php": ">=8.5"
+        }
+      }
+    }
   }
 }
 ```
@@ -230,71 +243,3 @@ php packagist.phar registry add https://github.com/wemmbley/packagist/registry.j
 
 Необходимо продумать "по умному" как кэшировать файлы и папки скачиваемых 
 модулей для более быстрой загрузки. Хотя и `spl_` работает достаточно быстро.
-
-## Улучшения
-
-ChatGPT:
-```
-Я бы разделил установку на две фазы.
-
-Фаза A — Resolution
-Сначала собираем дерево зависимостей, ничего не устанавливая.
-
-Например:
-App
-└── Neo >=3.0
-    ├── Database >=1.0
-    │   └── Collections >=1.0
-    ├── Security >=1.0
-    └── Chronos >=1.0
-
-На этом этапе:
-- Проверяем совместимость версий.
-- Обнаруживаем циклические зависимости.
-- Проверяем требования PHP.
-- Обнаруживаем конфликты версий.
-- Формируем полный план установки.
-
-Фаза B — Installation
-Теперь скачиваем архивы.
-Причём независимые пакеты можно загружать параллельно через curl multi.
-
-Например:
-        App
-         |
-        Neo
-     /   |   \
- Database Security Chronos
-     | 
- Collections
-
-
-Database, Security и Chronos можно загружать одновременно.
-
-Распаковку тоже можно выполнять независимо, пока не требуется 
-последовательная регистрация зависимостей.
-
-Твоя идея с временной директорией для rollback правильная.
-
-Я бы пошёл немного дальше:
-packages/
-    Neo/
-    Database/
-
-.packagist/
-    cache/
-    staging/
-    backup/
-
-Обновление:
-1. Скачиваем архив в cache.
-2. Проверяем целостность.
-3. Распаковываем в staging.
-4. Проверяем package.json.
-5. Проверяем зависимости.
-6. Перемещаем старую версию в backup.
-7. Перемещаем новую версию в packages.
-8. Генерируем новый lock.
-9. Генерируем новый autoload.
-10. Удаляем backup после успешного завершения.
-```

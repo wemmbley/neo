@@ -32,8 +32,13 @@ final class HeaderBag
     public function set(string $name, string|int|array|null $value, bool $replace = true): void
     {
         $key = $this->normalize($name);
-        $values = array_map(fn ($v): string => $this->cleanValue((string) $v), (array) ($value ?? ''));
-        $values = array_values($values);
+
+        if (is_string($value) || is_int($value)) {
+            # Одно значение (почти всегда): без array_map и замыкания.
+            $values = [$this->cleanValue((string) $value)];
+        } else {
+            $values = array_values(array_map(fn ($v): string => $this->cleanValue((string) $v), (array) ($value ?? '')));
+        }
 
         if ($replace || !isset($this->headers[$key])) {
             $this->headers[$key] = $values;
@@ -109,10 +114,17 @@ final class HeaderBag
         return strtolower($name);
     }
 
+    /** @var array<string, true> имена, уже прошедшие проверку (их десятки, живут весь процесс) */
+    private static array $validNames = [];
+
     private function cleanName(string $name): string
     {
-        if ($this->strict && preg_match('/^[a-zA-Z0-9\'`#$%&*+.^_|~!-]+$/', $name) !== 1) {
-            throw new InvalidArgumentException("Недопустимое имя HTTP-заголовка [{$name}].");
+        if ($this->strict && !isset(self::$validNames[$name])) {
+            if (preg_match('/^[a-zA-Z0-9\'`#$%&*+.^_|~!-]+$/', $name) !== 1) {
+                throw new InvalidArgumentException("Недопустимое имя HTTP-заголовка [{$name}].");
+            }
+
+            self::$validNames[$name] = true;
         }
 
         return $name;

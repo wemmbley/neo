@@ -53,6 +53,60 @@ class Output
         fwrite($this->stream, str_repeat(PHP_EOL, $count));
     }
 
+    public function table(array $headers, array $rows): void
+    {
+        $columns = count($headers);
+
+        if ($columns === 0) {
+            return;
+        }
+
+        $widths = [];
+
+        foreach ($headers as $index => $header) {
+            $widths[$index] = mb_strwidth((string) $header);
+        }
+
+        foreach ($rows as $row) {
+            for ($i = 0; $i < $columns; $i++) {
+                $widths[$i] = max(
+                    $widths[$i],
+                    mb_strwidth((string) ($row[$i] ?? ''))
+                );
+            }
+        }
+
+        $separator = '+';
+
+        foreach ($widths as $width) {
+            $separator .= str_repeat('-', $width + 2) . '+';
+        }
+
+        $this->line($separator, 'comment');
+
+        $printRow = function (array $row) use ($widths, $columns): void {
+            $line = '|';
+
+            for ($i = 0; $i < $columns; $i++) {
+                $value = (string) ($row[$i] ?? '');
+                $padding = $widths[$i] - mb_strwidth($value);
+
+                $line .= ' ' . $value . str_repeat(' ', $padding) . ' |';
+            }
+
+            $this->line($line);
+        };
+
+        $printRow($headers);
+
+        $this->line($separator, 'comment');
+
+        foreach ($rows as $row) {
+            $printRow($row);
+        }
+
+        $this->line($separator, 'comment');
+    }
     public function info(string $text): void
     {
         $this->line($text, 'info');

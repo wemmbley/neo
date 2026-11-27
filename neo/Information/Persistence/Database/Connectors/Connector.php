@@ -86,7 +86,24 @@ final class Connector
 
         $dsn .= ';charset=' . $charset;
 
-        $pdo = new PDO($dsn, $c['username'] ?? null, $c['password'] ?? null, self::OPTIONS);
+        $options = self::OPTIONS;
+
+        # Клиентская подстановка параметров: запрос уходит на сервер за один круг вместо двух-трёх
+        # (серверный prepare + execute + close). Значения экранирует PDO с учётом charset из DSN.
+        # Несколько запросов в одной строке при этом запрещаем, чтобы подстановка не открывала stacked queries.
+        if (filter_var($c['emulate_prepares'] ?? true, FILTER_VALIDATE_BOOL)) {
+            $options[PDO::ATTR_EMULATE_PREPARES] = true;
+
+            foreach (['Pdo\\Mysql::ATTR_MULTI_STATEMENTS', 'PDO::MYSQL_ATTR_MULTI_STATEMENTS'] as $constant) {
+                if (defined($constant)) {
+                    $options[constant($constant)] = false;
+
+                    break;
+                }
+            }
+        }
+
+        $pdo = new PDO($dsn, $c['username'] ?? null, $c['password'] ?? null, $options);
 
         $set = "SET NAMES '{$charset}'";
         if (!empty($c['collation'])) {

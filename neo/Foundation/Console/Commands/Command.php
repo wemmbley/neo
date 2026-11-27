@@ -136,6 +136,13 @@ abstract class Command
         $this->output->newLine($count);
     }
 
+
+    public function table(array $headers, array $rows): void
+    {
+        $this->output->table($headers, $rows);
+    }
+
+
     public function info(string $text): void
     {
         $this->output->info($text);

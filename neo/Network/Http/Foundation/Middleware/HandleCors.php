@@ -23,11 +23,14 @@ final class HandleCors
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $config = $this->config();
+        # Большинство запросов идут мимо CORS-путей: сначала дешёвая проверка пути, и только потом сборка настроек.
+        $paths = (array) config('cors.paths', []);
 
-        if (!$this->pathMatches($request, $config['paths'])) {
+        if ($paths === [] || !$this->pathMatches($request, $paths)) {
             return $next($request);
         }
+
+        $config = $this->config();
 
         $origin = $request->headers()->get('Origin');
 
@@ -70,10 +73,24 @@ final class HandleCors
     /** @param list<string> $paths */
     private function pathMatches(Request $request, array $paths): bool
     {
+        $decoded = null;
+
         foreach ($paths as $path) {
             $path = trim((string) $path, '/');
+            $path = $path === '' ? '/' : $path;
 
-            if ($request->is($path === '' ? '/' : $path)) {
+            # Шаблон вида «api/*»: сравнение префикса вместо построения регулярного выражения на каждый запрос.
+            if (str_ends_with($path, '/*') && !str_contains(substr($path, 0, -2), '*')) {
+                $decoded ??= rawurldecode($request->path());
+
+                if (str_starts_with($decoded, substr($path, 0, -1))) {
+                    return true;
+                }
+
+                continue;
+            }
+
+            if ($request->is($path)) {
                 return true;
             }
         }

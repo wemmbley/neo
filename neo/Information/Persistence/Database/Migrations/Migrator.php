@@ -220,7 +220,7 @@ class Migrator
     private function strategy(Migration $migration, string $file): string
     {
         $overrides = static fn (string $method): bool
-        => (new ReflectionMethod($migration, $method))->getDeclaringClass()->getName() !== Migration::class;
+            => (new ReflectionMethod($migration, $method))->getDeclaringClass()->getName() !== Migration::class;
 
         $legacy = $overrides('up');
         $declarative = $overrides('table');

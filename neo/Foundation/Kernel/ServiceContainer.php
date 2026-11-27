@@ -178,6 +178,12 @@ class ServiceContainer
         array  $parameters = [],
     ): mixed
     {
+        # Быстрый путь: готовый общий экземпляр (большинство вызовов за запрос).
+        # instance() и bind() снимают scoped/deferred, поэтому пересечений нет.
+        if ($parameters === [] && isset($this->instances[$abstract]) && !isset($this->deferred[$abstract]) && !isset($this->scoped[$abstract])) {
+            return $this->instances[$abstract];
+        }
+
         # Загрузчик сам снимает с себя ленивость, повторно не сработает.
         #
         if (isset($this->deferred[$abstract])) {

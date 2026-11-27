@@ -32,6 +32,9 @@ class Pipeline
 
     protected string $method = 'handle';
 
+    /** @var array<string, array{0: string, 1: list<string>}> разбор строк «Класс:параметры» (их немного, живут весь процесс) */
+    private static array $parsed = [];
+
     public function __construct(protected readonly ServiceContainer $container) {}
 
     public function send(mixed $passable): static
@@ -128,8 +131,10 @@ class Pipeline
      */
     protected function parsePipeString(string $pipe): array
     {
-        [$name, $parameters] = array_pad(explode(':', $pipe, 2), 2, null);
+        return self::$parsed[$pipe] ??= (static function () use ($pipe): array {
+            [$name, $parameters] = array_pad(explode(':', $pipe, 2), 2, null);
 
-        return [$name, $parameters === null ? [] : explode(',', $parameters)];
+            return [$name, $parameters === null ? [] : explode(',', $parameters)];
+        })();
     }
 }

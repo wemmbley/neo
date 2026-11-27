@@ -8,6 +8,7 @@ use Neo\Diagnostic\Testing\Commands\RunTestsCommand;
 use Neo\Foundation\Config\Config;
 use Neo\Foundation\Console\CommandProcessor;
 use Neo\Foundation\Console\Commands\HelpCommand;
+use Neo\Foundation\Console\Commands\CapacityCommand;
 use Neo\Foundation\Console\Output;
 use Neo\Foundation\Kernel\BootstrapperContract;
 use Neo\Foundation\Kernel\Commands\ConfigShowCommand;
@@ -34,6 +35,7 @@ final class ConsoleBootstrapper implements BootstrapperContract
         ProvidersCommand::class,
         ValidateCommand::class,
         RunTestsCommand::class,
+        CapacityCommand::class,
     ];
 
     public function bootstrap(Kernel $kernel): void

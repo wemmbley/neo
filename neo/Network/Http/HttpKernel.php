@@ -105,6 +105,14 @@ class HttpKernel
     }
 
     /** Вызывается ПОСЛЕ отправки ответа: middleware с методом terminate() и отложенные задачи. */
+    /** @var array<string, bool> */
+    private static array $terminable = [];
+
+    private static function hasTerminate(string $class): bool
+    {
+        return self::$terminable[$class] ??= method_exists($class, 'terminate');
+    }
+
     public function terminate(Request $request, Response $response): void
     {
         try {
@@ -122,9 +130,11 @@ class HttpKernel
 
         foreach ($items as $item) {
             try {
+                # Экземпляр создаём, только если у класса вообще есть terminate(): иначе на каждый запрос
+                # собирался бы второй комплект всех middleware ради пустого вызова.
                 $instance = match (true) {
                     is_object($item) && !$item instanceof Closure => $item,
-                    is_string($item) => $this->container->make(explode(':', $item, 2)[0]),
+                    is_string($item) => self::hasTerminate($class = explode(':', $item, 2)[0]) ? $this->container->make($class) : null,
                     default => null,
                 };
 

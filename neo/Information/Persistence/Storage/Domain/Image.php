@@ -107,21 +107,17 @@ class Image implements ImageContract
     /** Поворот по EXIF-ориентации. Читает EXIF из исходника, поэтому порядок с reencode() не важен. */
     public function orientate(): static
     {
-        if ($this->oriented || $this->sourceMime !== 'image/jpeg' || !function_exists('exif_read_data')) {
+        if ($this->oriented || $this->sourceMime !== 'image/jpeg') {
             return $this;
         }
 
         $this->oriented = true;
 
-        $stream = fopen('php://memory', 'r+b');
-        fwrite($stream, $this->binary);
-        rewind($stream);
-        $exif = @exif_read_data($stream, 'IFD0');
-        fclose($stream);
+        $orientation = self::exifOrientation($this->binary);
 
         $gd = $this->gd();
 
-        switch (is_array($exif) ? (int) ($exif['Orientation'] ?? 1) : 1) {
+        switch ($orientation) {
             case 2: imageflip($gd, IMG_FLIP_HORIZONTAL); break;
             case 3: $this->gd = imagerotate($gd, 180, 0) ?: $gd; break;
             case 4: imageflip($gd, IMG_FLIP_VERTICAL); break;
@@ -132,6 +128,93 @@ class Image implements ImageContract
         }
 
         return $this;
+    }
+
+    /**
+     * Значение EXIF-тега Orientation (1–8) из байтов JPEG; 1, если тега нет или данные повреждены.
+     * Читается вручную из сегмента APP1, поэтому расширение exif не нужно: раньше без него поворот
+     * молча не выполнялся, и фото с телефона сохранялись лёжа.
+     */
+    private static function exifOrientation(string $jpeg): int
+    {
+        $length = strlen($jpeg);
+
+        if ($length < 4 || !str_starts_with($jpeg, "\xFF\xD8")) {
+            return 1;
+        }
+
+        for ($pos = 2; $pos + 4 <= $length;) {
+            if ($jpeg[$pos] !== "\xFF") {
+                return 1;
+            }
+
+            $marker = ord($jpeg[$pos + 1]);
+
+            if ($marker === 0xFF) { # заполняющий байт
+                $pos++;
+
+                continue;
+            }
+
+            # Начало пиксельных данных или конец файла: EXIF стоял бы раньше.
+            if ($marker === 0xDA || $marker === 0xD9) {
+                return 1;
+            }
+
+            $size = (ord($jpeg[$pos + 2]) << 8) | ord($jpeg[$pos + 3]);
+
+            if ($size < 2) {
+                return 1;
+            }
+
+            if ($marker === 0xE1 && substr($jpeg, $pos + 4, 6) === "Exif\0\0") {
+                return self::tiffOrientation(substr($jpeg, $pos + 10, $size - 8));
+            }
+
+            $pos += 2 + $size;
+        }
+
+        return 1;
+    }
+
+    /** Ищет тег 0x0112 в IFD0 блока TIFF (порядок байт II или MM). */
+    private static function tiffOrientation(string $tiff): int
+    {
+        if (strlen($tiff) < 8) {
+            return 1;
+        }
+
+        $little = match (substr($tiff, 0, 2)) {
+            'II' => true,
+            'MM' => false,
+            default => null,
+        };
+
+        if ($little === null) {
+            return 1;
+        }
+
+        $u16 = static fn (int $at): int => $at + 2 <= strlen($tiff)
+            ? unpack($little ? 'v' : 'n', $tiff, $at)[1]
+            : 0;
+        $u32 = static fn (int $at): int => $at + 4 <= strlen($tiff)
+            ? unpack($little ? 'V' : 'N', $tiff, $at)[1]
+            : 0;
+
+        $ifd = $u32(4);
+        $entries = $u16($ifd);
+
+        for ($i = 0; $i < $entries && $i < 256; $i++) {
+            $entry = $ifd + 2 + $i * 12;
+
+            if ($u16($entry) === 0x0112) {
+                $value = $u16($entry + 8); # SHORT хранится в первых двух байтах поля значения
+
+                return $value >= 1 && $value <= 8 ? $value : 1;
+            }
+        }
+
+        return 1;
     }
 
     // ---------------------------------------------------------------- трансформации

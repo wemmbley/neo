@@ -104,10 +104,16 @@ final class Runner
                 . "(консольный php.ini показывает «php --ini»), проверьте командой «php -m».\n";
         }
 
-        $bootstrap = ($defaultPaths[0] ?? '') . '/bootstrap.php';
+        # bootstrap.php или Bootstrap.php: на Linux регистр в имени файла важен, и изоляция Kernel
+        # между тестами (app/Tests/Bootstrap.php) раньше молча не подключалась.
+        foreach (['bootstrap.php', 'Bootstrap.php'] as $name) {
+            $bootstrap = ($defaultPaths[0] ?? '') . '/' . $name;
 
-        if (is_file($bootstrap)) {
-            require_once $bootstrap;
+            if (is_file($bootstrap)) {
+                require_once $bootstrap;
+
+                break;
+            }
         }
 
         return self::instance()->run($files, $filter, $stopOnFailure, new Printer($colors, (string) getcwd()));

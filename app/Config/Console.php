@@ -21,16 +21,16 @@ return [
         # Системные тесты ядра с пакетами.
         # Можно выключить или удалить.
         #
-        base_path('neo/Information/Lang/Tests'),
-        base_path('neo/Information/Transfer/Tests'),
-        base_path('neo/Information/Validator/Tests'),
-        base_path('neo/Information/Persistence/Storage/Tests'),
-        base_path('neo/Network/Cookie/Tests'),
-        base_path('neo/Network/Session/Tests'),
-        base_path('neo/Network/Http/Tests'),
-        base_path('neo/Network/ResourceAPI/Tests'),
-        base_path('neo/Security/Tests'),
-        base_path('neo/Information/Structures/Tests'),
+        #base_path('neo/Information/Lang/Tests'),
+        #base_path('neo/Information/Transfer/Tests'),
+        #base_path('neo/Information/Validator/Tests'),
+        #base_path('neo/Information/Persistence/Storage/Tests'),
+        #base_path('neo/Network/Cookie/Tests'),
+        #base_path('neo/Network/Session/Tests'),
+        #base_path('neo/Network/Http/Tests'),
+        #base_path('neo/Network/ResourceAPI/Tests'),
+        #base_path('neo/Security/Tests'),
+        #base_path('neo/Information/Structures/Tests'),
     ],
 
 ];

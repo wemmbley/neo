@@ -9,6 +9,10 @@ use Neo\Information\Lang\LangProcessor;
 use Neo\Information\Lang\LangServiceProvider;
 
 beforeEach(function () {
+    # new Kernel(...) ниже подменяет глобальное приложение. Запоминаем прежнее, чтобы вернуть его после теста:
+    # иначе все следующие тесты (Validator, ResourceAPI, Security) остаются без приложения.
+    $this->previousKernel = Kernel::peekInstance();
+
     $this->langPath = sys_get_temp_dir() . '/neo_lang_' . uniqid();
 
     $this->packagePath = $this->langPath . '/packages/billing';
@@ -21,14 +25,16 @@ beforeEach(function () {
         string $file,
         array $data
     ): void {
-        $directory = "{$path}/{$locale}";
+        # Конвенция проекта: папка локали и файл с заглавной буквы (Ru/Lang.php), как у Validator и Faker.
+        # LangProcessor ищет именно так, а на Linux регистр в именах файлов важен.
+        $directory = "{$path}/" . ucfirst(strtolower($locale));
 
         if (!is_dir($directory)) {
             mkdir($directory, 0777, true);
         }
 
         file_put_contents(
-            "{$directory}/{$file}.php",
+            "{$directory}/" . ucfirst($file) . '.php',
             '<?php return ' . var_export($data, true) . ';'
         );
     };
@@ -126,7 +132,7 @@ afterEach(function () {
         rmdir($this->langPath);
     }
 
-    Kernel::setInstance(null);
+    Kernel::setInstance($this->previousKernel);
 });
 
 describe('Kernel integration', function () {

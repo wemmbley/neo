@@ -16,6 +16,9 @@
 | 400	         | 🏆 `6 658`   | 	2 174	   | **3,06×**            |   
 
 Neo обогнал Ларавель на пропускной способности в 3.1х раз.
+2 тысяч РПС не хватило в 10 конкурентности по следующей причине:
+Это закон Литтла: пропускная способность равна числу запросов 
+в полёте, делённому на задержку.
 
 | Concurrency	| Neo CPU	| Laravel CPU |
 |---------------|-----------|-------------|
@@ -64,16 +67,16 @@ wrk -t4 -c100 -d30s --latency http://127.0.0.1:8000/benchmark/mix
 Running 30s test @ http://127.0.0.1:8000/benchmark/mix
   4 threads and 100 connections
   Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency   105.17ms  139.85ms 567.69ms   79.53%
-    Req/Sec     1.75k   691.08     3.77k    67.67%
+    Latency    10.01ms    3.69ms  85.46ms   92.40%
+    Req/Sec     2.55k   250.43     3.07k    70.67%
   Latency Distribution
-     50%    6.78ms
-     75%  204.70ms
-     90%  339.41ms
-     99%  461.36ms
-  208885 requests in 30.01s, 101.41MB read
-Requests/sec:   6959.62
-Transfer/sec:      3.38MB
+     50%    9.10ms
+     75%   10.34ms
+     90%   12.69ms
+     99%   25.19ms
+  305032 requests in 30.01s, 148.04MB read
+Requests/sec:  10164.88
+Transfer/sec:      4.93MB
 ```
 
 ## Laravel 4 threads
@@ -86,18 +89,62 @@ wrk -t4 -c100 -d30s --latency http://127.0.0.1:8111/benchmark/mix
 Running 30s test @ http://127.0.0.1:8111/benchmark/mix
   4 threads and 100 connections
   Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency    51.93ms   44.81ms 429.84ms   93.65%
-    Req/Sec   560.95     98.15   780.00     68.92%
+    Latency    52.21ms   65.00ms 565.85ms   92.28%
+    Req/Sec   657.00    110.23     0.91k    68.17%
   Latency Distribution
-     50%   40.64ms
-     75%   51.66ms
-     90%   69.12ms
-     99%  281.04ms
-  67166 requests in 30.09s, 22.73MB read
-Requests/sec:   2232.41
-Transfer/sec:    773.74KB
+     50%   32.09ms
+     75%   44.66ms
+     90%   69.60ms
+     99%  359.59ms
+  78630 requests in 30.09s, 26.61MB read
+Requests/sec:   2613.38
+Transfer/sec:      0.88MB
 ```
 
+## Замечания
+
+Для того чтобы тестирование не упиралось в потолок загрузки 
+MySQL, были выполнены следующие команды перед стартом:
+```
+SET GLOBAL innodb_flush_log_at_trx_commit = 2;
+SET GLOBAL sync_binlog = 0;
+```
+
+Результаты БЕЗ этих значений следующие:
+Laravel:
+```
+Running 30s test @ http://127.0.0.1:8111/benchmark/mix
+  4 threads and 100 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    51.05ms   45.90ms 408.38ms   93.64%
+    Req/Sec   578.52     99.10   800.00     65.17%
+  Latency Distribution
+     50%   39.18ms
+     75%   49.70ms
+     90%   67.72ms
+     99%  282.08ms
+  69259 requests in 30.08s, 23.44MB read
+Requests/sec:   2302.45
+Transfer/sec:    797.93KB
+```
+Neo:
+```
+Running 30s test @ http://127.0.0.1:8000/benchmark/mix
+  4 threads and 100 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    15.43ms    7.65ms 107.97ms   82.42%
+    Req/Sec     1.68k   340.04     2.47k    63.75%
+  Latency Distribution
+     50%   13.49ms
+     75%   18.23ms
+     90%   24.44ms
+     99%   44.62ms
+  200116 requests in 30.01s, 97.35MB read
+Requests/sec:   6667.22
+Transfer/sec:      3.24MB
+```
+Дальше по тестам это не используется. Стоят значения по умолчанию 
+MySQL.
 
 ## Описание теста
 
@@ -133,42 +180,45 @@ JSON-ответа + Octane/Swoole runtime.
 scenario                n     ops/s      avg      p50      p95      p99      max   q/op    db %   err  retr
 -----------------------------------------------------------------------------------------------------------
 [plain]
-ping                  100 5337603.4    0.000    0.000    0.000    0.000    0.001   0.00    0.0%     0     0
-cpu                   100     623.4    1.604    1.590    1.680    1.765    1.809   0.00    0.0%     0     0
-json                  100    2443.0    0.409    0.403    0.451    0.460    0.463   0.00    0.0%     0     0
-sleep                 100      99.2   10.081   10.073   10.105   10.236   10.250   0.00    0.0%     0     0
-file                  100    5828.1    0.171    0.162    0.202    0.220    0.230   0.00    0.0%     0     0
-view                  100    3894.6    0.256    0.324    0.344    0.360    0.365   0.00    0.0%     0     0
+ping                  100 5472255.7    0.000    0.000    0.000    0.000    0.001   0.00    0.0%     0     0
+cpu                   100     618.0    1.618    1.594    1.733    1.912    1.979   0.00    0.0%     0     0
+json                  100    2453.9    0.407    0.402    0.446    0.463    0.492   0.00    0.0%     0     0
+sleep                 100      99.2   10.077   10.073   10.107   10.109   10.128   0.00    0.0%     0     0
+file                  100    5687.1    0.175    0.167    0.208    0.240    0.327   0.00    0.0%     0     0
+view                  100    5272.0    0.189    0.184    0.209    0.246    0.253   0.00    0.0%     0     0
 [db.read]
-db.select1            100    9044.1    0.110    0.102    0.141    0.160    0.181   1.00   96.4%     0     0
-db.pk                 100    3630.2    0.275    0.274    0.363    0.415    0.426   1.00   92.0%     0     0
-db.pk_orm             100    2997.1    0.333    0.336    0.476    0.493    0.543   1.00   72.9%     0     0
-db.list               100    2138.5    0.467    0.532    0.647    0.674    0.674   1.00   89.7%     0     0
-db.list_orm           100    1178.0    0.848    0.957    1.163    1.207    1.254   1.00   48.8%     0     0
-db.join               100    1834.9    0.544    0.489    0.800    0.859    0.873   1.00   88.2%     0     0
-db.n_plus_one         100     295.7    3.381    3.482    4.574    4.806    6.908  21.00   83.2%     0     0
-db.eager              100    1475.5    0.677    0.542    1.146    1.270    1.296   2.00   86.6%     0     0
-db.comments           100    3663.2    0.272    0.269    0.327    0.365    0.442   1.00   86.8%     0     0
-db.aggregate           10       6.9  145.518  144.679  152.488  152.488  152.488   1.00   99.9%     0     0
-db.count               10      14.5   69.031   68.140   73.908   73.908   73.908   1.00   99.9%     0     0
-db.like                10    2869.5    0.348    0.366    0.462    0.462    0.462   1.00   85.6%     0     0
-db.offset              10      55.7   17.945   18.386   32.690   32.690   32.690   1.00   99.5%     0     0
+db.select1            100    7522.8    0.133    0.128    0.152    0.163    0.180   1.00   95.9%     0     0
+db.pk                 100    3606.6    0.277    0.271    0.335    0.358    0.361   1.00   92.2%     0     0
+db.pk_orm             100    2664.5    0.375    0.367    0.449    0.474    0.485   1.00   78.4%     0     0
+db.list               100    2870.8    0.348    0.324    0.544    0.565    0.635   1.00   86.1%     0     0
+db.list_orm           100    1629.4    0.613    0.466    1.048    1.114    1.173   1.00   50.7%     0     0
+db.join               100    2614.1    0.382    0.379    0.446    0.469    0.481   1.00   91.3%     0     0
+db.n_plus_one         100     229.7    4.352    3.953    6.884    7.155    7.548  21.00   83.4%     0     0
+db.eager              100    1601.2    0.624    0.594    0.863    1.048    1.073   2.00   84.7%     0     0
+db.comments           100    1537.8    0.650    0.611    1.096    1.326    1.459   1.00   93.4%     0     0
+db.aggregate           10       3.2  314.431  303.485  352.570  352.570  352.570   1.00  100.0%     0     0
+db.count               10       8.7  114.606  111.271  124.706  124.706  124.706   1.00   99.9%     0     0
+db.like                10    2586.5    0.386    0.358    0.474    0.474    0.474   1.00   83.7%     0     0
+db.offset              10      41.1   24.308   24.842   35.330   35.330   35.330   1.00   99.7%     0     0
 [db.write]
-db.insert             100     402.4    2.485    2.249    4.019    5.116    5.869   1.00   97.8%     0     0
-db.insert_orm         100     455.7    2.194    2.138    2.707    3.017    3.034   1.00   95.5%     0     0
-db.bulk               100     172.9    5.782    5.670    6.391   11.718   12.572   1.00   91.1%     0     0
-db.bulk_tx            100      44.2   22.599   20.884   34.197   37.896   38.309 100.00   73.4%     0     0
-db.update             100     391.0    2.556    2.479    3.153    4.491    5.559   1.00   97.6%     0     0
-db.update_orm         100     318.3    3.141    3.143    4.008    4.388    4.692   2.00   91.3%     0     0
-db.counter            100     376.6    2.654    2.507    4.358    5.856    6.227   1.00   97.8%     0     0
-db.transaction        100     289.6    3.452    3.460    4.155    4.621    4.661   3.00   27.3%     0     0
-db.transfer           100     343.0    2.915    2.910    3.474    3.718    5.041   2.00   20.4%     0     0
-db.delete             100     210.8    4.744    4.515    5.323    9.174   19.311   2.00   98.0%     0     0
+db.insert             100     442.9    2.257    2.080    3.255    4.524    4.539   1.00   97.6%     0     0
+db.insert_orm         100     421.0    2.375    2.382    2.827    3.004    3.355   1.00   95.9%     0     0
+db.bulk               100     187.3    5.338    5.298    6.402    7.726   19.517   1.00   90.2%     0     0
+db.bulk_tx            100      51.7   19.345   18.148   30.022   34.290   35.714 100.00   72.2%     0     0
+db.update             100     419.4    2.383    2.371    2.829    2.920    3.078   1.00   97.8%     0     0
+db.update_orm         100     356.1    2.807    2.842    3.385    3.923    3.938   2.00   91.1%     0     0
+db.counter            100     484.0    2.065    1.912    2.612    3.481    6.416   1.00   97.8%     0     0
+db.transaction        100     286.6    3.488    3.310    4.810    6.312   11.102   3.00   26.5%     0     0
+db.transfer           100     359.9    2.778    2.768    3.259    3.671    4.215   2.00   21.3%     0     0
+db.delete             100     226.9    4.407    4.411    5.106    5.273    5.389   2.00   98.0%     0     0
 [mixed]
-mix                   100    1239.6    0.806    0.407    2.297    3.867    4.166   1.08   78.5%     0     0
-heavy                  10       4.4  225.621  226.444  238.729  238.729  238.729   4.10   99.9%     0     0
+mix                   100    1080.4    0.925    0.541    2.436    5.802    6.063   1.03   87.5%     0     0
+heavy                  10       3.7  269.477  270.439  282.610  282.610  282.610   4.00   99.9%     0     0
+```
 
-Время в миллисекундах; db % это доля времени SQL в общем времени сценария.
+При включённом кэше View:
+```
+view                  100   14668.4    0.068    0.066    0.077    0.089    0.094   0.00    0.0%     0     0
 ```
 
 ## Laravel Benchmark
@@ -212,6 +262,8 @@ mix                   100    1088.6    0.918    0.588    2.532    3.204    3.309
 heavy                  10       4.4  226.129  224.948  253.727  253.727  253.727   5.00   99.7%     0     0
 Times in ms; db % is SQL time share.
 ```
+
+Laravel кэш не отключался, по умолчанию он кэшировал что мог.
 
 ## Описание теста
 
@@ -298,97 +350,97 @@ Neo Capacity Analyzer
 | Target             | http://127.0.0.1:8000/benchmark/mix |
 | CPU cores          | 12                                  |
 | Total RAM          | 15.54 GB                            |
-| Duration           | 15 seconds per stage                |
+| Duration           | 10 seconds per stage                |
 | Concurrency levels | 10, 25, 50, 100, 200, 400           |
 +--------------------+-------------------------------------+
 
 Testing 10 concurrent connections...
-+--------------------+---------+
-| Metric             | Result  |
-+--------------------+---------+
-| Requests/sec       | 4640.76 |
-| Requests completed | 69632   |
-| Average latency    | 1.95 ms |
-| P50                | 1.06 ms |
-| P95                | 6.26 ms |
-| P99                | 9.5 ms  |
-| CPU average        | 42.1%   |
-| CPU peak           | 58.8%   |
-| RAM peak           | 51.6%   |
-| Errors             | 0       |
-| Error rate         | 0%      |
-| Status             | STABLE  |
-+--------------------+---------+
++--------------------+----------+
+| Metric             | Result   |
++--------------------+----------+
+| Requests/sec       | 4547.91  |
+| Requests completed | 45553    |
+| Average latency    | 2 ms     |
+| P50                | 1.05 ms  |
+| P95                | 6.4 ms   |
+| P99                | 10.63 ms |
+| CPU average        | 37%      |
+| CPU peak           | 44%      |
+| RAM peak           | 45.1%    |
+| Errors             | 0        |
+| Error rate         | 0%       |
+| Status             | STABLE   |
++--------------------+----------+
 
 Testing 25 concurrent connections...
 +--------------------+----------+
 | Metric             | Result   |
 +--------------------+----------+
-| Requests/sec       | 6874.41  |
-| Requests completed | 103228   |
-| Average latency    | 3.5 ms   |
-| P50                | 1.23 ms  |
-| P95                | 9.15 ms  |
-| P99                | 49.96 ms |
-| CPU average        | 58%      |
-| CPU peak           | 66.9%    |
-| RAM peak           | 51.7%    |
+| Requests/sec       | 6524.58  |
+| Requests completed | 65387    |
+| Average latency    | 3.71 ms  |
+| P50                | 1.97 ms  |
+| P95                | 10.79 ms |
+| P99                | 23.44 ms |
+| CPU average        | 49.9%    |
+| CPU peak           | 65.7%    |
+| RAM peak           | 45.2%    |
 | Errors             | 0        |
 | Error rate         | 0%       |
 | Status             | STABLE   |
 +--------------------+----------+
 
 Testing 50 concurrent connections...
-+--------------------+-----------+
-| Metric             | Result    |
-+--------------------+-----------+
-| Requests/sec       | 6861.64   |
-| Requests completed | 103343    |
-| Average latency    | 7.13 ms   |
-| P50                | 1.35 ms   |
-| P95                | 9.45 ms   |
-| P99                | 177.02 ms |
-| CPU average        | 57.3%     |
-| CPU peak           | 67%       |
-| RAM peak           | 51.7%     |
-| Errors             | 0         |
-| Error rate         | 0%        |
-| Status             | STABLE    |
-+--------------------+-----------+
++--------------------+----------+
+| Metric             | Result   |
++--------------------+----------+
+| Requests/sec       | 6551.8   |
+| Requests completed | 65570    |
+| Average latency    | 7.52 ms  |
+| P50                | 5.65 ms  |
+| P95                | 17.24 ms |
+| P99                | 31.91 ms |
+| CPU average        | 49.9%    |
+| CPU peak           | 54.7%    |
+| RAM peak           | 45.2%    |
+| Errors             | 0        |
+| Error rate         | 0%       |
+| Status             | STABLE   |
++--------------------+----------+
 
 Testing 100 concurrent connections...
-+--------------------+-----------+
-| Metric             | Result    |
-+--------------------+-----------+
-| Requests/sec       | 6858.12   |
-| Requests completed | 104213    |
-| Average latency    | 14.3 ms   |
-| P50                | 1.65 ms   |
-| P95                | 10.76 ms  |
-| P99                | 422.19 ms |
-| CPU average        | 60.9%     |
-| CPU peak           | 79.1%     |
-| RAM peak           | 51.8%     |
-| Errors             | 0         |
-| Error rate         | 0%        |
-| Status             | STABLE    |
-+--------------------+-----------+
++--------------------+----------+
+| Metric             | Result   |
++--------------------+----------+
+| Requests/sec       | 6585.98  |
+| Requests completed | 65957    |
+| Average latency    | 15.07 ms |
+| P50                | 13.33 ms |
+| P95                | 27.95 ms |
+| P99                | 40.84 ms |
+| CPU average        | 50.6%    |
+| CPU peak           | 58.7%    |
+| RAM peak           | 45.2%    |
+| Errors             | 0        |
+| Error rate         | 0%       |
+| Status             | STABLE   |
++--------------------+----------+
 
 Testing 200 concurrent connections...
 +--------------------+----------+
 | Metric             | Result   |
 +--------------------+----------+
-| Requests/sec       | 6682.12  |
-| Requests completed | 102110   |
-| Average latency    | 29.25 ms |
-| P50                | 8.28 ms  |
-| P95                | 85.52 ms |
-| P99                | 586.3 ms |
-| CPU average        | 57.7%    |
-| CPU peak           | 75%      |
-| RAM peak           | 51.9%    |
-| Errors             | 69       |
-| Error rate         | 0.068%   |
+| Requests/sec       | 6479.37  |
+| Requests completed | 65140    |
+| Average latency    | 30.6 ms  |
+| P50                | 28.64 ms |
+| P95                | 48.8 ms  |
+| P99                | 62.53 ms |
+| CPU average        | 49.3%    |
+| CPU peak           | 55.9%    |
+| RAM peak           | 45.4%    |
+| Errors             | 0        |
+| Error rate         | 0%       |
 | Status             | STABLE   |
 +--------------------+----------+
 
@@ -396,33 +448,39 @@ Testing 400 concurrent connections...
 +--------------------+-----------+
 | Metric             | Result    |
 +--------------------+-----------+
-| Requests/sec       | 6657.67   |
-| Requests completed | 101873    |
-| Average latency    | 58.46 ms  |
-| P50                | 25.47 ms  |
-| P95                | 243.12 ms |
-| P99                | 599.77 ms |
-| CPU average        | 58%       |
-| CPU peak           | 80.1%     |
-| RAM peak           | 52.1%     |
-| Errors             | 260       |
-| Error rate         | 0.255%    |
-| Status             | SATURATED |
+| Requests/sec       | 6443.65   |
+| Requests completed | 64680     |
+| Average latency    | 61.32 ms  |
+| P50                | 58.9 ms   |
+| P95                | 90.04 ms  |
+| P99                | 109.49 ms |
+| CPU average        | 57.3%     |
+| CPU peak           | 67%       |
+| RAM peak           | 45.7%     |
+| Errors             | 0         |
+| Error rate         | 0%        |
+| Status             | STABLE    |
 +--------------------+-----------+
-Capacity threshold reached.
 
 CAPACITY REPORT
 ───────────────────────────────────────────────────────
-+--------------------+----------+
-| Metric             | Value    |
-+--------------------+----------+
-| Maximum stable RPS | 6682     |
-| Stable concurrency | 200      |
-| P95 latency        | 85.52 ms |
-| P99 latency        | 586.3 ms |
-| CPU average        | 57.7%    |
-| RAM peak           | 51.9%    |
-+--------------------+----------+
++--------------------+-----------+
+| Metric             | Value     |
++--------------------+-----------+
+| Maximum stable RPS | 6444      |
+| Stable concurrency | 400       |
+| P95 latency        | 90.04 ms  |
+| P99 latency        | 109.49 ms |
+| CPU average        | 57.3%     |
+| RAM peak           | 45.7%     |
++--------------------+-----------+
+
+RESOURCE RECOMMENDATIONS
+CPU capacity appears sufficient.
+RAM capacity appears sufficient.
+
+For accurate measurements, run the load generator on a separate machine.
+CPU and RAM values represent the entire host, not Neo workers alone.
 ```
 
 ## Laravel 

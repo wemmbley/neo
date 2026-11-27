@@ -46,6 +46,11 @@ class DatabaseServiceProvider extends ServiceProvider
                     $this->app->make(DatabaseManager::class)->releaseCurrent();
                 }
             })
+            ->onWorkerExit(function (): void {
+                if ($this->app->getContainer()->hasInstance(DatabaseManager::class)) {
+                    $this->app->make(DatabaseManager::class)->drain();
+                }
+            })
             ->onWorkerStop(function (): void {
                 if ($this->app->getContainer()->hasInstance(DatabaseManager::class)) {
                     $this->app->make(DatabaseManager::class)->close();

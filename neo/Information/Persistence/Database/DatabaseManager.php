@@ -15,6 +15,7 @@ use Neo\Information\Persistence\Database\Query\Builder;
 use Neo\Information\Persistence\Database\Query\Grammar;
 use Neo\Information\Persistence\Database\Query\Raw;
 use Neo\Information\Persistence\Database\Schema\SchemaBuilder;
+use Throwable;
 
 /**
  * Менеджер соединений. Всё, чего нет в нём, проксируется в соединение по умолчанию,
@@ -105,6 +106,68 @@ class DatabaseManager
         $this->pools = [];
     }
 
+    /**
+     * Подгоняет размер пула под лимит соединений сервера MySQL. Вызывается один раз в master-процессе
+     * до запуска воркеров (`php cli serve --swoole`).
+     *
+     * Пул создаётся в КАЖДОМ воркере, поэтому на сервер приходит `workers × pool.max` соединений.
+     * Если это больше `max_connections`, клиенты получают «Too many connections». Здесь максимум
+     * на воркер уменьшается до `floor((max_connections - reserve) / workers)`. Увеличивать значение
+     * не нужно, поэтому настройка только ограничивается сверху. `reserve` (DB_POOL_RESERVE) оставляет
+     * место для консоли, миграций, сидера и других клиентов.
+     *
+     * Проверяется только соединение по умолчанию и только драйвер mysql. Если сервер недоступен,
+     * размер остаётся как в конфиге.
+     *
+     * @return array<string, array{configured: int, applied: int, server_max: int, reserve: int, workers: int}>
+     */
+    public function fitPools(int $workers): array
+    {
+        $workers = max(1, $workers);
+        $name = $this->getDefaultConnection();
+        $connection = (array) ($this->config['connections'][$name] ?? []);
+        $pool = $this->poolConfig($name);
+
+        if ($pool === null || ($connection['driver'] ?? null) !== 'mysql') {
+            return [];
+        }
+
+        try {
+            $probe = $this->make($name);
+            $serverMax = (int) ($probe->selectOne('SELECT @@max_connections AS m')['m'] ?? 0);
+            unset($probe); # соединение закрывается: master не должен занимать слот сервера
+        } catch (Throwable) {
+            return [];
+        }
+
+        if ($serverMax < 1) {
+            return [];
+        }
+
+        $reserve = max(0, (int) ($pool['reserve'] ?? 20));
+        $configured = max(1, (int) ($pool['max'] ?? 10));
+        $applied = min($configured, max(1, intdiv($serverMax - $reserve, $workers)));
+
+        if ($applied < $configured) {
+            $pool['max'] = $applied;
+            $pool['min'] = min((int) ($pool['min'] ?? 0), $applied);
+
+            if (isset($this->config['connections'][$name]['pool'])) {
+                $this->config['connections'][$name]['pool'] = $pool;
+            } else {
+                $this->config['pool'] = $pool;
+            }
+        }
+
+        return [$name => [
+            'configured' => $configured,
+            'applied' => $applied,
+            'server_max' => $serverMax,
+            'reserve' => $reserve,
+            'workers' => $workers,
+        ]];
+    }
+
     /** Прогрев пулов до `min` (только внутри корутины: иначе канал ожидания недоступен). */
     public function warmUp(): void
     {
@@ -130,6 +193,17 @@ class DatabaseManager
     }
 
     /** Graceful shutdown воркера: закрывает пулы и соединения. */
+    /**
+     * Воркер получил команду на выход (max_request, reload), но запросы ещё идут: закрываем только простаивающие
+     * соединения и таймеры пула. Выданные соединения вернутся в пул штатно, окончательно всё закроет close().
+     */
+    public function drain(): void
+    {
+        foreach ($this->pools as $pool) {
+            $pool->drain();
+        }
+    }
+
     public function close(): void
     {
         foreach ($this->pools as $pool) {

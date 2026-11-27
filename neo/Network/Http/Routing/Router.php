@@ -21,8 +21,6 @@ use Neo\Network\Http\RedirectResponse;
 use Neo\Network\Http\Request;
 use Neo\Network\Http\Response;
 use Neo\Network\Http\ViewResponse;
-use ReflectionFunction;
-use ReflectionMethod;
 use Stringable;
 
 /**
@@ -427,7 +425,7 @@ class Router
         $uses = $route->getAction('uses');
 
         if ($uses instanceof Closure) {
-            $reflection = new ReflectionFunction($uses);
+            $reflection = ParameterResolver::closureReflection($uses);
 
             return $uses(...$this->resolver->resolve($route, $request, $reflection));
         }
@@ -445,7 +443,7 @@ class Router
         }
 
         $arguments = method_exists($controller, $method)
-            ? $this->resolver->resolve($route, $request, new ReflectionMethod($controller, $method))
+            ? $this->resolver->resolve($route, $request, ParameterResolver::methodReflection($controller, $method))
             : array_values($route->parametersWithoutNulls());
 
         if (method_exists($controller, 'callAction')) {

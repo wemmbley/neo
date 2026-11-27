@@ -274,24 +274,60 @@ class Connection
     }
 
     /**
+     * Выполняет колбэк в транзакции. Откат при исключении, фиксация при успехе.
+     *
+     * `$attempts` > 1: если внешняя транзакция откатилась из-за дедлока (MySQL 1213 / SQLSTATE 40001),
+     * колбэк выполняется заново. Побочные эффекты вне БД внутри колбэка при этом повторятся.
+     * Вложенные транзакции не повторяются: при дедлоке сервер откатывает всю транзакцию целиком,
+     * поэтому повторить можно только внешнюю. Если число попыток не задано, берётся ключ
+     * `transaction_attempts` конфига соединения (по умолчанию 1, как раньше).
+     *
      * @template T
      * @param Closure(self): T $callback
      * @return T
      */
-    public function transaction(Closure $callback): mixed
+    public function transaction(Closure $callback, ?int $attempts = null): mixed
     {
-        $this->beginTransaction();
+        $attempts = max(1, $attempts ?? (int) ($this->config['transaction_attempts'] ?? 1));
 
-        try {
-            $result = $callback($this);
-        } catch (Throwable $e) {
-            $this->rollBack();
+        for ($attempt = 1; ; $attempt++) {
+            $this->beginTransaction();
 
-            throw $e;
+            try {
+                $result = $callback($this);
+            } catch (Throwable $e) {
+                $this->rollBack();
+
+                if ($attempt < $attempts && $this->transactions === 0 && $this->causedByDeadlock($e)) {
+                    usleep(random_int(500, 3000) * $attempt); # разводим конкурирующие повторы
+
+                    continue;
+                }
+
+                throw $e;
+            }
+
+            $this->commit();
+
+            return $result;
+        }
+    }
+
+    /** Дедлок: код MySQL 1213 или SQLSTATE 40001 (в самом исключении или в его причине). */
+    private function causedByDeadlock(Throwable $e): bool
+    {
+        for ($current = $e; $current !== null; $current = $current->getPrevious()) {
+            if ($current instanceof PDOException) {
+                if ((int) ($current->errorInfo[1] ?? 0) === 1213 || (string) ($current->errorInfo[0] ?? '') === '40001') {
+                    return true;
+                }
+            }
+
+            if (stripos($current->getMessage(), 'deadlock found') !== false) {
+                return true;
+            }
         }
 
-        $this->commit();
-
-        return $result;
+        return false;
     }
 }

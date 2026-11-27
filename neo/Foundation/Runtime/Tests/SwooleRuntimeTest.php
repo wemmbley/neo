@@ -368,17 +368,49 @@ test('request timeout answers 504 and does not emit a late response', function (
         public function isWritable(): bool { return true; }
     };
 
-    Coroutine::$hang = false;
+    Timer::$afters = [];
+    Timer::$fireAfter = true; # таймаут запроса «срабатывает» до того, как ответ готов
     co(function () use ($handle, $server, $request, $response) {
-        Coroutine::$hang = true; # дочерняя корутина запроса «зависает»
         $log = ini_get('error_log');
         ini_set('error_log', sys_get_temp_dir() . '/neo-timeout-test.log');
         $handle->invoke($server, $request, $response, false);
         ini_set('error_log', (string) $log);
-        Coroutine::$hang = false;
     });
+    Timer::$fireAfter = false;
 
     expect($response->status)->toBe(504)->and($response->body)->toBe('Gateway Timeout');
+});
+
+test('request timer is cleared when the request finishes in time', function () {
+    $c = new TestClient();
+    $c->router->get('/fast', fn () => 'ok');
+
+    $server = new SwooleServer($c->kernel, ['request_timeout' => 30]);
+    $handle = new ReflectionMethod($server, 'handle');
+
+    $request = new class {
+        public array $server = ['request_method' => 'GET', 'request_uri' => '/fast', 'query_string' => ''];
+        public array $header = ['host' => 'localhost'];
+        public array $get = [];
+        public array $post = [];
+        public array $cookie = [];
+        public array $files = [];
+        public function rawContent(): string { return ''; }
+    };
+    $response = new class {
+        public int $status = 0;
+        public string $body = '';
+        public function status(int $code, string $reason = ''): void { $this->status = $code; }
+        public function header(string $n, string $v): void {}
+        public function end(string $b = ''): void { $this->body = $b; }
+        public function isWritable(): bool { return true; }
+    };
+
+    Timer::$afters = [];
+    Timer::$fireAfter = false;
+    co(fn () => $handle->invoke($server, $request, $response, false));
+
+    expect($response->status)->toBe(200)->and($response->body)->toBe('ok')->and(Timer::$afters)->toHaveCount(0);
 });
 
 test('tasks run inline in sync, in a coroutine under Swoole and in task workers when attached', function () {

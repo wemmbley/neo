@@ -18,6 +18,7 @@ use ReflectionFunctionAbstract;
 use ReflectionMethod;
 use ReflectionNamedType;
 use ReflectionParameter;
+use WeakMap;
 
 /**
  * Подбирает аргументы для действия маршрута (замыкания или метода контроллера):
@@ -32,6 +33,23 @@ use ReflectionParameter;
  */
 final class ParameterResolver
 {
+    /**
+     * Рефлексия действий маршрутов кэшируется на жизнь процесса: сигнатура метода не меняется,
+     * а создавать ReflectionMethod и ReflectionParameter на каждый запрос незачем (Swoole, Octane-подобный режим).
+     *
+     * @var array<string, ReflectionMethod>
+     */
+    private static array $methods = [];
+
+    /** @var WeakMap<Closure, ReflectionFunction>|null */
+    private static ?WeakMap $closures = null;
+
+    /** @var WeakMap<ReflectionFunctionAbstract, list<array{0: ReflectionParameter, 1: string, 2: ?string}>>|null */
+    private static ?WeakMap $plans = null;
+
+    /** @var array<class-string, bool> */
+    private static array $instantiable = [];
+
     public function __construct(
         private readonly ServiceContainer $container,
         private readonly Router $router,
@@ -45,10 +63,7 @@ final class ParameterResolver
         $parameters = $route->parameters();
         $arguments = [];
 
-        foreach ($reflection->getParameters() as $parameter) {
-            $name = $parameter->getName();
-            $class = $this->classOf($parameter);
-
+        foreach ($this->plan($reflection) as [$parameter, $name, $class]) {
             if ($class !== null) {
                 if (is_subclass_of($class, FormRequest::class)) {
                     $form = $class::createFrom($request);
@@ -110,11 +125,9 @@ final class ParameterResolver
             return;
         }
 
-        foreach ($reflection->getParameters() as $parameter) {
-            $name = $parameter->getName();
-
+        foreach ($this->plan($reflection) as [$parameter, $name, $class]) {
             if ($route->hasParameter($name) && !is_object($route->parameter($name)) && $route->parameter($name) !== null) {
-                $route->setParameter($name, $this->bind($route, $name, $route->parameter($name), $parameter, $this->classOf($parameter), true));
+                $route->setParameter($name, $this->bind($route, $name, $route->parameter($name), $parameter, $class, true));
             }
         }
 
@@ -131,12 +144,37 @@ final class ParameterResolver
         $uses = $route->getAction('uses');
 
         if ($uses instanceof Closure) {
-            return new ReflectionFunction($uses);
+            return self::closureReflection($uses);
         }
 
         [$class, $method] = $route->parseController();
 
-        return class_exists($class) && method_exists($class, $method) ? new ReflectionMethod($class, $method) : null;
+        return class_exists($class) && method_exists($class, $method) ? self::methodReflection($class, $method) : null;
+    }
+
+    public static function methodReflection(object|string $class, string $method): ReflectionMethod
+    {
+        $name = is_object($class) ? $class::class : $class;
+
+        return self::$methods[$name . '::' . $method] ??= new ReflectionMethod($name, $method);
+    }
+
+    public static function closureReflection(Closure $closure): ReflectionFunction
+    {
+        self::$closures ??= new WeakMap();
+
+        return self::$closures[$closure] ??= new ReflectionFunction($closure);
+    }
+
+    /** @return list<array{0: ReflectionParameter, 1: string, 2: ?string}> параметр, имя, класс типа */
+    private function plan(ReflectionFunctionAbstract $reflection): array
+    {
+        self::$plans ??= new WeakMap();
+
+        return self::$plans[$reflection] ??= array_map(
+            fn (ReflectionParameter $parameter): array => [$parameter, $parameter->getName(), $this->classOf($parameter)],
+            $reflection->getParameters(),
+        );
     }
 
     private function bind(Route $route, string $name, mixed $value, ReflectionParameter $parameter, ?string $class, bool $substituting = false): mixed
@@ -187,6 +225,6 @@ final class ParameterResolver
 
     private function instantiable(string $class): bool
     {
-        return class_exists($class) && (new \ReflectionClass($class))->isInstantiable();
+        return self::$instantiable[$class] ??= class_exists($class) && (new \ReflectionClass($class))->isInstantiable();
     }
 }

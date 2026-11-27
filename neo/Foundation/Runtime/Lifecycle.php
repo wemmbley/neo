@@ -13,7 +13,8 @@ use Throwable;
  *
  *   workerStart()  один раз при старте воркера: открыть ресурсы воркера, снять «унаследованные» от master
  *   requestEnd()   после каждого запроса: reset() всех зарегистрированных Resettable
- *   workerStop()   graceful-остановка воркера: закрыть пулы и соединения
+ *   workerExit()   воркеру велели выйти, запросы ещё идут: снять таймеры, закрыть простаивающее
+ *   workerStop()   воркер остановился (запросов нет): закрыть пулы и соединения
  *
  * Адаптер рантайма (SwooleServer) вызывает эти методы; синхронный PHP их не вызывает вовсе.
  * Ошибка одного обработчика не мешает остальным и не роняет воркер: она уходит в error_log.
@@ -22,6 +23,9 @@ final class Lifecycle
 {
     /** @var list<Closure(): void> */
     private array $workerStart = [];
+
+    /** @var list<Closure(): void> */
+    private array $workerExit = [];
 
     /** @var list<Closure(): void> */
     private array $workerStop = [];
@@ -35,6 +39,20 @@ final class Lifecycle
     public function onWorkerStart(Closure $callback): static
     {
         $this->workerStart[] = $callback;
+
+        return $this;
+    }
+
+    /**
+     * Воркер получил команду на выход, но запросы ещё выполняются (Swoole `workerExit` при reload_async/max_request).
+     * Здесь можно только перестать брать новую работу: снять таймеры, закрыть простаивающее. Пулы и соединения,
+     * которыми пользуются идущие запросы, закрывать нельзя: для этого есть onWorkerStop.
+     *
+     * @param Closure(): void $callback
+     */
+    public function onWorkerExit(Closure $callback): static
+    {
+        $this->workerExit[] = $callback;
 
         return $this;
     }
@@ -63,6 +81,11 @@ final class Lifecycle
     public function workerStart(): void
     {
         $this->each($this->workerStart, 'worker start');
+    }
+
+    public function workerExit(): void
+    {
+        $this->each($this->workerExit, 'worker exit');
     }
 
     public function workerStop(): void

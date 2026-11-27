@@ -26,6 +26,9 @@ interface PoolContract
     /** Закрывает пул и все его свободные ресурсы. */
     public function close(): void;
 
+    /** Мягкое завершение воркера: освободить простаивающие ресурсы и таймеры, но не мешать идущим запросам. */
+    public function drain(): void;
+
     /** @return array{total: int, idle: int, leased: int, max: int} */
     public function stats(): array;
 }

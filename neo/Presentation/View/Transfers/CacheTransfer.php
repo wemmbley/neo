@@ -16,6 +16,12 @@ use Neo\Information\Validator\Rule;
 class CacheTransfer extends Transfer
 {
     public bool $enabled = false;
+
+    /**
+     * true: перед каждым рендером сверять время изменения шаблона (правки видны сразу).
+     * false: шаблон проверяется один раз на процесс, дальше без обращений к диску (production, долгоживущий воркер).
+     */
+    public bool $validate = true;
     public string $strategy = 'directive';
     public string $path = '';
     public int $lifetime = 0;

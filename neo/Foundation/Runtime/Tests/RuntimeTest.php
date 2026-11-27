@@ -192,3 +192,41 @@ test('Pool close destroys idle resources without touching the channel', function
     $pool->release($b); # выданный до close() ресурс закрывается при возврате
     expect($destroyed)->toBe(2)->and($pool->stats()['total'])->toBe(0);
 });
+
+test('Pool drain closes idle resources but keeps serving requests that are still running', function () {
+    $made = 0;
+    $pool = new Pool(
+        factory: function () use (&$made) { $made++; return new stdClass(); },
+        options: new PoolOptions(min: 0, max: 2, acquireTimeout: 0.01),
+        runtime: new SyncRuntime(),
+    );
+
+    $busy = $pool->acquire();
+    $idle = $pool->acquire();
+    $pool->release($idle);
+
+    $pool->drain();
+
+    # Простаивающее соединение закрыто, выданное живо, пул не закрыт и по-прежнему выдаёт ресурсы.
+    expect($pool->stats())->toBe(['total' => 1, 'idle' => 0, 'leased' => 1, 'max' => 2]);
+
+    $late = $pool->acquire();
+    expect($late)->toBeInstanceOf(stdClass::class)->and($made)->toBe(3);
+
+    $pool->release($busy);
+    $pool->release($late);
+    $pool->close();
+
+    expect($pool->stats()['total'])->toBe(0);
+});
+
+test('Lifecycle workerExit runs exit callbacks without running stop callbacks', function () {
+    $log = [];
+    $life = (new Lifecycle())
+        ->onWorkerExit(function () use (&$log) { $log[] = 'exit'; })
+        ->onWorkerStop(function () use (&$log) { $log[] = 'stop'; });
+
+    $life->workerExit();
+
+    expect($log)->toBe(['exit']);
+});

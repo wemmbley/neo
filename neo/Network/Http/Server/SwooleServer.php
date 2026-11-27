@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Neo\Network\Http\Server;
 
-use Neo\Foundation\Runtime\Exceptions\TimeoutException;
 use Neo\Foundation\Runtime\Lifecycle;
 use Neo\Foundation\Runtime\Runtime;
 use Neo\Foundation\Runtime\Swoole\SwooleApi;
@@ -81,8 +80,9 @@ final class SwooleServer implements ServerContract
         $this->server->set($this->settings($ssl));
 
         $this->server->on('workerStart', fn (object $server, int $workerId) => $this->workerStart());
-        # workerExit приходит, пока цикл событий ещё жив (reload_async); workerStop приходит после него, уже без корутин.
-        $this->server->on('workerExit', fn (object $server, int $workerId) => $this->workerStop());
+        # workerExit приходит, пока цикл событий ещё жив и запросы идут (reload_async, max_request): пулы тут не закрываем,
+        # только снимаем таймеры. workerStop приходит после него, когда запросов уже нет, уже без корутин.
+        $this->server->on('workerExit', fn (object $server, int $workerId) => $this->workerExit());
         $this->server->on('workerStop', fn (object $server, int $workerId) => $this->workerStop());
         $this->server->on('request', fn (object $request, object $response) => $this->handle($request, $response, $ssl));
 
@@ -181,6 +181,15 @@ final class SwooleServer implements ServerContract
         $this->lifecycle?->workerStart();
     }
 
+    private function workerExit(): void
+    {
+        try {
+            $this->lifecycle?->workerExit();
+        } catch (Throwable $e) {
+            error_log('[swoole] worker exit failed: ' . $e::class . ': ' . $e->getMessage());
+        }
+    }
+
     private function workerStop(): void
     {
         if ($this->stopped) {
@@ -207,40 +216,59 @@ final class SwooleServer implements ServerContract
     private function handle(object $swooleRequest, object $swooleResponse, bool $ssl): void
     {
         $started = false;
+        $timedOut = false;
+        $timer = 0;
 
         try {
             $request = $this->makeRequest($swooleRequest, $ssl);
-
-            $work = function () use ($request, $swooleResponse, &$started): void {
-                $this->http->serve($request, function (Response $response) use ($swooleResponse, &$started): void {
-                    $started = true;
-                    $this->emit($response, $swooleResponse);
-                });
-            };
-
             $timeout = (float) ($this->options['request_timeout'] ?? 0);
 
-            if ($timeout > 0 && Runtime::current()->inCoroutine()) {
-                # Запрос идёт в дочерней корутине: по таймауту её можно отменить, а клиенту ответить 504.
-                Runtime::current()->async()->timeout($timeout, $work);
-            } else {
-                $work();
-            }
-        } catch (TimeoutException) {
-            error_log('[swoole] request timeout');
+            # Таймаут без дочерней корутины и канала на каждый запрос: один таймер на запрос, он же
+            # отвечает клиенту 504 и отменяет корутину запроса. Если ответ уже начали отправлять
+            # (в том числе потоковый), таймер ничего не делает: поток не обрывается на середине.
+            if ($timeout > 0 && SwooleApi::inCoroutine()) {
+                $cid = SwooleApi::cid();
 
-            if (!$started && $swooleResponse->isWritable()) {
-                $swooleResponse->status(504);
-                $swooleResponse->end('Gateway Timeout');
+                $timer = SwooleApi::after($timeout, function () use (&$started, &$timedOut, $cid, $swooleResponse): void {
+                    if ($started) {
+                        return;
+                    }
+
+                    $timedOut = true;
+                    error_log('[swoole] request timeout');
+
+                    if ($swooleResponse->isWritable()) {
+                        $swooleResponse->status(504);
+                        $swooleResponse->end('Gateway Timeout');
+                    }
+
+                    SwooleApi::cancel($cid);
+                });
             }
+
+            $this->http->serve($request, function (Response $response) use ($swooleResponse, &$started, &$timedOut): void {
+                if ($timedOut) {
+                    return; # клиенту уже ушёл 504, поздний ответ не отправляем
+                }
+
+                $started = true;
+                $this->emit($response, $swooleResponse);
+            });
         } catch (Throwable $e) {
-            error_log('[swoole] ' . $e::class . ': ' . $e->getMessage());
+            # Отмена по таймауту тоже приходит исключением из прерванного ввода-вывода: клиент уже получил 504.
+            if (!$timedOut) {
+                error_log('[swoole] ' . $e::class . ': ' . $e->getMessage());
 
-            if ($swooleResponse->isWritable()) {
-                $swooleResponse->status(500);
-                $swooleResponse->end('Server Error');
+                if ($swooleResponse->isWritable()) {
+                    $swooleResponse->status(500);
+                    $swooleResponse->end('Server Error');
+                }
             }
         } finally {
+            if ($timer > 0) {
+                SwooleApi::clearTimer($timer);
+            }
+
             # Состояние запроса сбрасывается всегда, даже при ошибке.
             $this->lifecycle?->requestEnd();
         }

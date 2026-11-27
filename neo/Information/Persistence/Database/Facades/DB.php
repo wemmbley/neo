@@ -31,7 +31,7 @@ use Neo\Information\Persistence\Database\Schema\SchemaBuilder;
  * @method static int affectingStatement(string $sql, array $bindings = [])
  * @method static bool unprepared(string $sql)
  * @method static string lastInsertId()
- * @method static mixed transaction(Closure $callback)
+ * @method static mixed transaction(Closure $callback, ?int $attempts = null)
  * @method static void beginTransaction()
  * @method static void commit()
  * @method static void rollBack()

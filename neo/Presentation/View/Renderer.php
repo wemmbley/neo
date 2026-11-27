@@ -49,8 +49,14 @@ class Renderer
     /** @var array<string, string> */
     private array $located = [];
 
-    /** @var array<string, array{0: int, 1: string}> источник => [mtime, путь к скомпилированному файлу] при выключенном кэше */
-    private array $compiledInMemory = [];
+    /**
+     * источник => [mtime, путь к скомпилированному файлу]. Статический: Renderer создаётся заново на каждый запрос
+     * (у него своё состояние стеков и слотов), а компиляция шаблона должна происходить один раз на процесс воркера,
+     * а не на каждый запрос.
+     *
+     * @var array<string, array{0: string, 1: string}>
+     */
+    private static array $compiledInMemory = [];
 
     /** @var list<string> стек путей выполняемых шаблонов (для @once «по месту»). */
     private array $sources = [];
@@ -438,11 +444,20 @@ class Renderer
     {
         $cache = $this->config->cache;
 
+        # validate=false: шаблон уже компилировался в этом процессе, файловая система больше не нужна
+        # (ни filemtime, ни is_file на каждый рендер).
+        if (!$cache->validate && isset(self::$compiledInMemory[$source])) {
+            return [self::$compiledInMemory[$source][1], false];
+        }
+
         if (!$cache->enabled) {
             # Кэш выключен: шаблон всё равно компилируется один раз на процесс (и заново при изменении файла),
             # а не на каждый запрос с записью временного файла и пересборкой opcache.
-            $mtime = (int) @filemtime($source);
-            $known = $this->compiledInMemory[$source] ?? null;
+            # Подпись файла: время изменения и размер одним stat. Одного mtime мало: две правки в одну секунду
+            # дали бы одинаковую подпись, и в воркере остался бы старый скомпилированный шаблон.
+            $stat = @stat($source);
+            $mtime = $stat === false ? '0' : $stat['mtime'] . ':' . $stat['size'];
+            $known = self::$compiledInMemory[$source] ?? null;
 
             if ($known !== null && $known[0] === $mtime && is_file($known[1])) {
                 return [$known[1], false];
@@ -455,7 +470,7 @@ class Renderer
                 @unlink($known[1]);
             }
 
-            $this->compiledInMemory[$source] = [$mtime, $path];
+            self::$compiledInMemory[$source] = [$mtime, $path];
 
             return [$path, false];
         }
@@ -469,6 +484,8 @@ class Renderer
         if (!$fresh) {
             $this->writeAtomic($path, $this->compiler->compile($this->read($source)));
         }
+
+        self::$compiledInMemory[$source] = ['', $path];
 
         return [$path, false];
     }

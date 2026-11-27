@@ -11,6 +11,9 @@ return [
     'pool' => [
         'min' => (int) env('DB_POOL_MIN', 1),
         'max' => (int) env('DB_POOL_MAX', 10),
+        # Сколько соединений сервера MySQL оставить вне пулов воркеров (консоль, миграции, другие клиенты).
+        # `serve --swoole` уменьшает max, если workers × max + reserve не помещается в max_connections.
+        'reserve' => (int) env('DB_POOL_RESERVE', 20),
         'acquire_timeout' => (float) env('DB_POOL_ACQUIRE_TIMEOUT', 3.0),
         'idle_timeout' => 60.0,
         'max_lifetime' => 3600.0,

@@ -34,7 +34,7 @@ $protocol = Protocol::define('samp')
 $sampServer = Protocol::request(
             address: '185.169.134.239:7777', 
             schema: 'samp::info', 
-            payload: ['payload' => [],
+            payload: [],
             timeout: 3000,
             retries: 1,
           ]);
@@ -100,7 +100,7 @@ class SampProtocol extends Protocol
 {
     public function define(): void
     {
-        Protocol::define('udp')
+        $this->protocol->define('udp')
             ->endian('little')
             ->header(SampHeader::class)
             ->discriminate('opcode');
@@ -108,7 +108,7 @@ class SampProtocol extends Protocol
     
     public function packets()
     {
-        Packet::define('info', 0x69, fn ($p) => $p
+        $this->protocol->packet->define('info', 0x69, fn ($p) => $p
             ->request(ServerInfoRequestDatagram::class)
             ->response(ServerInfoResponseDatagram::class));
     }
@@ -118,12 +118,5 @@ class SampProtocol extends Protocol
 #### Использование
 
 ```php 
-$sampServer = Udp::request('185.169.134.239:7777', [SampProtocol::class, 'info']);
-
-Udp::request('185.169.134.239:7777')
-->protocol(SampProtocol::class)
-->packet('info')
-->get();
-
-echo $sampServer->hostname;
+echo SampProtocol::request('185.169.134.239:7777', 'info')->hostname;
 ```

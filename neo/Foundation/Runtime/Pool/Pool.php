@@ -63,13 +63,19 @@ final class Pool implements PoolContract
             throw new PoolException('Пул закрыт.');
         }
 
+        $startedAt = microtime(true);
         $entry = $this->slots->pop($this->options->acquireTimeout);
 
         if (!$entry instanceof PoolEntry) {
+            # pop() возвращает false и по таймауту, и сразу, если канал закрыт: фактическое время ожидания
+            # в сообщении отличает «пул правда занят» от «пул закрыли под ожидающим».
             throw new PoolExhaustedException(sprintf(
-                'Пул исчерпан: все %d ресурсов заняты, ожидание %.1f с закончилось.',
+                'Пул исчерпан: все %d ресурсов заняты, ожидание %.1f с закончилось (фактически %.3f с, выдано %d, пул %s).',
                 $this->options->max,
                 $this->options->acquireTimeout,
+                microtime(true) - $startedAt,
+                count($this->leased),
+                $this->closed ? 'закрыт' : 'открыт',
             ));
         }
 
@@ -196,16 +202,7 @@ final class Pool implements PoolContract
         }
 
         $this->closed = true;
-
-        if ($this->reaper !== 0) {
-            try {
-                $this->runtime->clearTick($this->reaper);
-            } catch (Throwable) {
-                # Таймер уже снят вместе с циклом событий.
-            }
-
-            $this->reaper = 0;
-        }
+        $this->stopReaper();
 
         $leased = [];
 
@@ -224,6 +221,48 @@ final class Pool implements PoolContract
         } catch (Throwable) {
             # Канал мог быть закрыт вместе с циклом событий.
         }
+    }
+
+    /**
+     * Мягкое завершение воркера (Swoole `workerExit` при max_request/reload): запросы ещё выполняются и
+     * могут ждать соединение, поэтому канал НЕ закрывается и новые acquire() работают.
+     * Снимается таймер чистки (иначе воркер не выйдет) и закрываются свободные соединения;
+     * выданные закроет close() на `workerStop`, когда запросов уже нет.
+     */
+    public function drain(): void
+    {
+        if ($this->closed) {
+            return;
+        }
+
+        $this->stopReaper();
+
+        $leased = [];
+
+        foreach ($this->leased as $entry) {
+            $leased[spl_object_id($entry)] = true;
+        }
+
+        foreach ($this->entries as $entry) {
+            if (!isset($leased[spl_object_id($entry)])) {
+                $this->destroyResource($entry);
+            }
+        }
+    }
+
+    private function stopReaper(): void
+    {
+        if ($this->reaper === 0) {
+            return;
+        }
+
+        try {
+            $this->runtime->clearTick($this->reaper);
+        } catch (Throwable) {
+            # Таймер уже снят вместе с циклом событий.
+        }
+
+        $this->reaper = 0;
     }
 
     public function stats(): array

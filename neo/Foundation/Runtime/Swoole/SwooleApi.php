@@ -100,6 +100,14 @@ final class SwooleApi
         return (int) $class::tick(max(1, (int) round($seconds * 1000)), $callback);
     }
 
+    /** Одноразовый таймер: колбэк запускается один раз через $seconds (в своей корутине). */
+    public static function after(float $seconds, callable $callback): int
+    {
+        $class = self::cls('Timer');
+
+        return (int) $class::after(max(1, (int) round($seconds * 1000)), $callback);
+    }
+
     public static function clearTimer(int $timerId): void
     {
         $class = self::cls('Timer');

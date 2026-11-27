@@ -111,13 +111,18 @@ final class Connector
         }
         $pdo->exec($set);
 
+        # Часовой пояс и sql_mode одним запросом: на каждое новое соединение пула одним кругом до сервера меньше.
+        $assign = [];
+
         if (!empty($c['timezone'])) {
-            $pdo->exec("SET time_zone = '" . $c['timezone'] . "'");
+            $assign[] = "time_zone = '" . $c['timezone'] . "'";
         }
 
-        $pdo->exec(($c['strict'] ?? true)
-            ? "SET SESSION sql_mode = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'"
-            : "SET SESSION sql_mode = 'NO_ENGINE_SUBSTITUTION'");
+        $assign[] = ($c['strict'] ?? true)
+            ? "sql_mode = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'"
+            : "sql_mode = 'NO_ENGINE_SUBSTITUTION'";
+
+        $pdo->exec('SET ' . implode(', ', $assign));
 
         return $pdo;
     }

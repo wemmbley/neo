@@ -98,9 +98,27 @@ namespace Swoole {
             return self::$seq;
         }
 
+        /** Тест просит одноразовый таймер сработать сразу (иначе колбэк просто запоминается). */
+        public static bool $fireAfter = false;
+        /** @var array<int, callable> */
+        public static array $afters = [];
+
+        public static function after(int $ms, callable $fn): int
+        {
+            $id = ++self::$seq;
+
+            if (self::$fireAfter) {
+                $fn();
+            } else {
+                self::$afters[$id] = $fn;
+            }
+
+            return $id;
+        }
+
         public static function clear(int $id): bool
         {
-            unset(self::$ticks[$id]);
+            unset(self::$ticks[$id], self::$afters[$id]);
             return true;
         }
     }
